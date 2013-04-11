@@ -26,16 +26,24 @@
 
     <modelVersion>4.0.0</modelVersion>
 
+    <groupId>org.jboss.bot</groupId>
+    <artifactId>jbossbot</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
     <name>JBossBot</name>
+    <url>https://github.com/jbossbot/jbossbot.git</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-    <groupId>org.jboss.bot</groupId>
-    <artifactId>jbossbot</artifactId>
-    <packaging>jar</packaging>
-    <version>1.0.0-SNAPSHOT</version>
+    <scm>
+        <connection>scm:git:git@github.com:abstractj/kalium.git</connection>
+        <developerConnection>scm:git:git@github.com:abstractj/kalium.git</developerConnection>
+        <url>https://github.com/abstractj/kalium</url>
+        <tag>HEAD</tag>
+    </scm>
 
     <licenses>
         <license>
@@ -44,6 +52,19 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
+    <developers>
+        <developer>
+            <id>dmlloyd</id>
+            <name>David M. Lloyd</name>
+            <url>https://github.com/dmlloyd</url>
+            <email>david.lloyd@redhat.com</email>
+            <roles>
+                <role>Software Developer</role>
+            </roles>
+        </developer>
+    </developers>
+
     <organization>
         <name>JBoss, a division of Red Hat, Inc.</name>
         <url>http://www.jboss.org/</url>
