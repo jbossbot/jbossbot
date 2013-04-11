@@ -39,9 +39,9 @@
     </properties>
 
     <scm>
-        <connection>scm:git:git@github.com:abstractj/kalium.git</connection>
-        <developerConnection>scm:git:git@github.com:abstractj/kalium.git</developerConnection>
-        <url>https://github.com/abstractj/kalium</url>
+        <connection>scm:git:git@github.com:jbossbot/jbossbot.git</connection>
+        <developerConnection>scm:git:git@github.com:jbossbot/jbossbot.git</developerConnection>
+        <url>https://github.com/jbossbot/jbossbot</url>
         <tag>HEAD</tag>
     </scm>
 
