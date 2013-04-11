@@ -1,0 +1,164 @@
+/*
+ * JBoss, Home of Professional Open Source.
+ * Copyright 2010, Red Hat Middleware LLC, and individual contributors
+ * as indicated by the @author tags. See the copyright.txt file in the
+ * distribution for a full listing of individual contributors.
+ *
+ * This is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation; either version 2.1 of
+ * the License, or (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this software; if not, write to the Free
+ * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
+ */
+
+span.xb {
+    font-weight: bold;
+}
+
+span.xu {
+    text-decoration: underline;
+}
+
+body {
+    color: #ffffff;
+    background-color: #000000;
+    font-family: monospace;
+    font-size: 14pt;
+}
+
+span.c0 {
+    color: #CECECE;
+}
+
+span.c1 {
+    color: #000000;
+}
+
+span.c2 {
+    color: #0000FF;
+}
+
+span.c3 {
+    color: #00CC00;
+}
+
+span.c4 {
+    color: #DD0000;
+}
+
+span.c5 {
+    color: #AA0000;
+}
+
+span.c6 {
+    color: #BB00BB;
+}
+
+span.c7 {
+    color: #FFAA00;
+}
+
+span.c8 {
+    color: #EEDD22;
+}
+
+span.c9 {
+    color: #33DE55;
+}
+
+span.c10 {
+    color: #00CCCC;
+}
+
+span.c11 {
+    color: #33EEFF;
+}
+
+span.c12 {
+    color: #8080FF;
+}
+
+span.c13 {
+    color: #EE22EE;
+}
+
+span.c14 {
+    color: #777777;
+}
+
+span.c15 {
+    color: #999999;
+}
+
+span.bc0 {
+    background-color: #CECECE;
+}
+
+span.bc1 {
+    background-color: #000000;
+}
+
+span.bc2 {
+    background-color: #0000FF;
+}
+
+span.bc3 {
+    background-color: #00CC00;
+}
+
+span.bc4 {
+    background-color: #DD0000;
+}
+
+span.bc5 {
+    background-color: #AA0000;
+}
+
+span.bc6 {
+    background-color: #BB00BB;
+}
+
+span.bc7 {
+    background-color: #FFAA00;
+}
+
+span.bc8 {
+    background-color: #EEDD22;
+}
+
+span.bc9 {
+    background-color: #33DE55;
+}
+
+span.bc10 {
+    background-color: #00CCCC;
+}
+
+span.bc11 {
+    background-color: #33EEFF;
+}
+
+span.bc12 {
+    background-color: #8080FF;
+}
+
+span.bc13 {
+    background-color: #EE22EE;
+}
+
+span.bc14 {
+    background-color: #777777;
+}
+
+span.bc15 {
+    background-color: #999999;
+}
