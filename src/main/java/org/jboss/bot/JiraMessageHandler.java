@@ -152,7 +152,7 @@ public final class JiraMessageHandler extends MessageHandler {
         }
     });
 
-    private static final Pattern JIRA_KEY = Pattern.compile("\\b([A-Z]{2}[A-Z0-9]*|teiiddes)-\\d+");
+    private static final Pattern JIRA_KEY = Pattern.compile("\\b([A-Z]{2}[A-Z0-9]*)-\\d+",Pattern.CASE_INSENSITIVE);
 
     final AtomicLong lastNote = new AtomicLong(System.currentTimeMillis());
 
