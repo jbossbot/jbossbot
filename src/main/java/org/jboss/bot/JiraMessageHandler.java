@@ -171,11 +171,12 @@ public final class JiraMessageHandler extends MessageHandler {
                     System.err.println("Recursion state already contains " + key);
                     return;
                 }
-                final String channel = channels.get(prefix);
-                if (channel == null) {
+                final String channelListString = channels.get(prefix);
+                if (channelListString == null) {
                     System.err.println("No channel mapping for " + key);
                     return;
                 }
+                final String[] channels = channelListString.split(",");
                 final Site site = sites.containsKey(prefix) ? sites.get(prefix) : defaultSite;
                 if (site == null) {
                     // ignored or otherwise not recognized
@@ -198,7 +199,11 @@ public final class JiraMessageHandler extends MessageHandler {
                     return;
                 }
                 cache.put(key, cacheEntry);
-                sendCacheEntry(bot, channel, key, cacheEntry, "new jira");
+                for (String channel : channels) {
+                    if (channel != null && !channel.isEmpty()) {
+                        sendCacheEntry(bot, channel, key, cacheEntry, "new jira");
+                    }
+                }
             } finally {
                 state.exit();
             }
