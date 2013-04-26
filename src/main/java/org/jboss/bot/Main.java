@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2010, Red Hat Middleware LLC, and individual contributors
+ * Copyright 2013, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -27,8 +27,8 @@ import java.net.InetSocketAddress;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
-import org.jboss.logmanager.LogManager;
-import org.jibble.pircbot.IrcException;
+import java.util.ServiceLoader;
+import org.pircbotx.exception.IrcException;
 
 import com.sun.net.httpserver.HttpServer;
 
@@ -36,6 +36,7 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
@@ -44,8 +45,7 @@ public final class Main {
     private Main() {
     }
 
-    public static void main(String[] args) throws IOException, NoSuchAlgorithmException, KeyManagementException {
-        System.setProperty("java.util.logging.manager", LogManager.class.getName());
+    public static void main(String[] args) throws IOException, NoSuchAlgorithmException, KeyManagementException, IrcException {
         TrustManager[] trustAllCerts = new TrustManager[] { new X509TrustManager() {
             public java.security.cert.X509Certificate[] getAcceptedIssuers() {
                 return null;
@@ -60,7 +60,8 @@ public final class Main {
 
         SSLContext sc = SSLContext.getInstance("SSL");
         sc.init(null, trustAllCerts, new java.security.SecureRandom());
-        HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+        final SSLSocketFactory socketFactory = sc.getSocketFactory();
+        HttpsURLConnection.setDefaultSSLSocketFactory(socketFactory);
 
         HostnameVerifier allHostsValid = new HostnameVerifier() {
             public boolean verify(String hostname, SSLSession session) {
@@ -70,21 +71,14 @@ public final class Main {
         HttpsURLConnection.setDefaultHostnameVerifier(allHostsValid);
 
         final HttpServer server = HttpServer.create(new InetSocketAddress(5150), 100);
-        server.start();
 
-        final JBossBot bot = new JBossBot(server);
+        final JBossBot bot = new JBossBot(socketFactory);
 
-        bot.setVerbose(true);
-        try {
-            System.out.println("Connecting...");
-            bot.connect("irc.freenode.net");
-        } catch (IOException e) {
-            System.err.println("Failed to connect: " + e);
-            return;
-        } catch (IrcException e) {
-            System.err.println("Failed to connect: " + e);
-            return;
+        for (JBossBotServiceProvider provider : ServiceLoader.load(JBossBotServiceProvider.class, Main.class.getClassLoader())) {
+            provider.register(bot, server);
         }
-        System.out.println("Identifying...");
+
+        server.start();
+        bot.connect();
     }
 }

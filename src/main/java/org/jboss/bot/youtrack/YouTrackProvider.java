@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2011, Red Hat Middleware LLC, and individual contributors
+ * Copyright 2013, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -20,26 +20,21 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot;
+package org.jboss.bot.youtrack;
 
-import org.jibble.pircbot.PircBot;
+import org.jboss.bot.JBossBot;
+import org.jboss.bot.JBossBotServiceProvider;
+import org.mangosdk.spi.ProviderFor;
+
+import com.sun.net.httpserver.HttpServer;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class JoinChannelAction implements Action {
+@ProviderFor(JBossBotServiceProvider.class)
+public final class YouTrackProvider implements JBossBotServiceProvider {
 
-    private final String channel;
-
-    public JoinChannelAction(final String channel) {
-        this.channel = channel;
-    }
-
-    public String getChannel() {
-        return channel;
-    }
-
-    public void execute(final PircBot bot) {
-        bot.joinChannel(channel);
+    public void register(final JBossBot bot, final HttpServer httpServer) {
+        bot.getListenerManager().addListener(new YouTrackMessageHandler());
     }
 }

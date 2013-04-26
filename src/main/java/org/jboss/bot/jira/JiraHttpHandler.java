@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2011, Red Hat Middleware LLC, and individual contributors
+ * Copyright 2013, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -20,31 +20,33 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot;
+package org.jboss.bot.jira;
 
-import org.jibble.pircbot.PircBot;
+import com.zwitserloot.json.JSON;
+import java.io.IOException;
+import java.net.URI;
+import org.jboss.bot.JBossBot;
+import org.jboss.bot.http.JSONHttpHandler;
+
+import com.sun.net.httpserver.Headers;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class MessageAction implements Action {
-    private final String target;
-    private final String message;
+public final class JiraHttpHandler extends JSONHttpHandler {
+    private final JBossBot bot;
+    private final JiraMessageHandler messageHandler;
 
-    public MessageAction(final String target, final String message) {
-        this.target = target;
-        this.message = message;
+    public JiraHttpHandler(final JBossBot bot, final JiraMessageHandler messageHandler) {
+        this.bot = bot;
+        this.messageHandler = messageHandler;
     }
 
-    public String getTarget() {
-        return target;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void execute(final PircBot bot) {
-        bot.sendMessage(target, message);
+    public void handle(final Headers requestHeaders, final Headers queryParams, final URI uri, final JSON json) throws IOException {
+        try {
+            messageHandler.createdNote(bot, json.get("issue").get("key").asString());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

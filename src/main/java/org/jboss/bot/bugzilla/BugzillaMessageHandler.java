@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2010, Red Hat Middleware LLC, and individual contributors
+ * Copyright 2013, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -20,12 +20,11 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot;
+package org.jboss.bot.bugzilla;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Collections;
@@ -33,77 +32,43 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jboss.bot.IrcStringBuilder;
+import org.jboss.bot.JBossBot;
+import org.pircbotx.hooks.ListenerAdapter;
+import org.pircbotx.hooks.events.ActionEvent;
+import org.pircbotx.hooks.events.MessageEvent;
+import org.pircbotx.hooks.events.PrivateMessageEvent;
+import org.pircbotx.hooks.types.GenericMessageEvent;
 
-import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
-public final class YouTrackMessageHandler extends MessageHandler {
+public final class BugzillaMessageHandler extends ListenerAdapter<JBossBot> {
 
     private final long dupeTime;
     private final long expireTime;
-    private final Map<String, Site> sites;
-    private final Site defaultSite;
     private final ThreadLocal<RecursionState> recursionState = new ThreadLocal<RecursionState>() {
         protected RecursionState initialValue() {
             return new RecursionState();
         }
     };
 
-    private static final class Site {
-        private final String urlPrefix;
-        private final String username;
-        private final String password;
-
-        private Site(final String urlPrefix, final String username, final String password) {
-            this.urlPrefix = urlPrefix;
-            this.username = username;
-            this.password = password;
-        }
-    }
-
-    public YouTrackMessageHandler(Properties properties) {
-        int i = 0;
-        final Map<String, Site> sites = new HashMap<String, Site>();
-        for (;;i++) {
-            final String url = properties.getProperty("youtrack.site." + i + ".url");
-            if (url == null) {
-                break;
-            }
-            final String username = properties.getProperty("youtrack.site." + i + ".username");
-            final String password = properties.getProperty("youtrack.site." + i + ".password");
-            final String[] prefixes = properties.getProperty("youtrack.site." + i + ".prefixes").split(",");
-            for (String prefix : prefixes) {
-                sites.put(prefix, new Site(url, username, password));
-            }
-        }
-        final String ignored = properties.getProperty("youtrack.ignored");
-        if (ignored != null) for (String prefix : ignored.split(",")) {
-            sites.put(prefix, null);
-        }
-        this.sites = sites;
-        final String url = properties.getProperty("youtrack.site.default.url");
-        final String username = properties.getProperty("youtrack.site.default.username");
-        final String password = properties.getProperty("youtrack.site.default.password");
-        if (url != null) {
-            defaultSite = new Site(url, username, password);
-        } else {
-            defaultSite = null;
-        }
-        dupeTime = Long.parseLong(properties.getProperty("youtrack.cache.duplicate.ms", "10000"));
-        expireTime = Long.parseLong(properties.getProperty("youtrack.cache.expire.ms", "45000"));
+    public BugzillaMessageHandler(JBossBot bot) {
+        dupeTime = bot.getPrefNode().getLong("bugzilla.cache.duplicate.ms", 10000);
+        expireTime = bot.getPrefNode().getLong("bugzilla.cache.expire.ms", 45000);
     }
 
     private static final class CacheEntry {
         private final long timestamp;
         private final String key;
+        private final String id;
+        private final String product;
         private final String summary;
         private final String status;
         private final String priority;
@@ -111,9 +76,11 @@ public final class YouTrackMessageHandler extends MessageHandler {
         private final String link;
         private final String redirect;
 
-        private CacheEntry(final long timestamp, final String key, final String summary, final String status, final String priority, final String assignee, final String link, final String redirect) {
+        private CacheEntry(final long timestamp, final String key, final String id, final String product, final String summary, final String status, final String priority, final String assignee, final String link, final String redirect) {
             this.timestamp = timestamp;
             this.key = key;
+            this.id = id;
+            this.product = product;
             this.summary = summary;
             this.status = status;
             this.priority = priority;
@@ -129,26 +96,35 @@ public final class YouTrackMessageHandler extends MessageHandler {
         }
     });
 
-    private static final Pattern YOUTRACK_KEY = Pattern.compile("\\b([A-Z]{2,}|teiiddes)-\\d+");
+    private static final Pattern BZ_URL = Pattern.compile("(?:(?:(https?://[.a-zA-Z_-]+(?::\\d+)?)/(?:[^?/]*/)*show_bug\\.cgi\\?id=)|(?:[Bb][Zz]\\s*#))(\\d+)");
 
-    public boolean doHandle(final JBossBot bot, final String channel, final String msg) {
+    public void onAction(final ActionEvent<JBossBot> event) throws Exception {
+        doHandle(event);
+    }
+
+    public void onMessage(final MessageEvent<JBossBot> event) throws Exception {
+        doHandle(event);
+    }
+
+    public void onPrivateMessage(final PrivateMessageEvent<JBossBot> event) throws Exception {
+        doHandle(event);
+    }
+
+    public boolean doHandle(final GenericMessageEvent<JBossBot> event) {
         final RecursionState state = recursionState.get();
         state.enter();
         try {
-            final Matcher matcher = YOUTRACK_KEY.matcher(msg);
             int i = 5;
             final long now = System.currentTimeMillis();
-            final StringBuilder builder = new StringBuilder();
+            final IrcStringBuilder builder = new IrcStringBuilder();
+            Matcher matcher = BZ_URL.matcher(event.getMessage());
             while (matcher.find() && i-- > 0) {
-                final String key = matcher.group().toUpperCase();
+                String baseUrl = matcher.group(1);
+                if (baseUrl == null) baseUrl = "https://bugzilla.redhat.com";
+                String bugId = matcher.group(2);
+                final String key = baseUrl + "/show_bug.cgi?id=" + bugId;
                 if (! state.add(key)) {
                     // we already reported on this issue
-                    continue;
-                }
-                final String prefix = matcher.group(1).toUpperCase();
-                final Site site = sites.containsKey(prefix) ? sites.get(prefix) : defaultSite;
-                if (site == null) {
-                    // ignored or otherwise not recognized
                     continue;
                 }
                 CacheEntry cacheEntry = cache.get(key);
@@ -165,25 +141,25 @@ public final class YouTrackMessageHandler extends MessageHandler {
                     // report the cache entry.
                 } else {
                     // create a new cache entry.
-                    cacheEntry = lookup(site, key, now);
+                    cacheEntry = lookup(key, bugId, now);
                     if (cacheEntry == null) continue;
                     cache.put(key, cacheEntry);
                 }
                 if (cacheEntry.redirect != null) {
-                    builder.append((char) 2).append("youtrack").append((char)2).append((char) 15).append(' ');
-                    builder.append('[').append((char)3).append('3').append(key).append((char) 15).append("] ");
-                    builder.append((char) 3).append('7').append("Redirected to: ").append((char) 3).append("10").append(cacheEntry.redirect).append((char) 15);
+                    builder.b().append("bugzilla").b().nc().append(' ');
+                    builder.append('[').fc(3).append(cacheEntry.product).append(' ').b().append('#').append(bugId).b().nc().append("] ");
+                    builder.fc(7).append("Redirected to: ").fc(10).append(cacheEntry.redirect).nc();
                 } else {
-                    builder.append((char) 2).append("youtrack").append((char)2).append((char) 15).append(' ');
-                    builder.append('[').append((char)3).append('3').append(key).append((char) 15).append("] ");
+                    builder.b().append("bugzilla").b().nc().append(' ');
+                    builder.append('[').fc(3).append(cacheEntry.product).append(' ').b().append('#').append(bugId).b().nc().append("] ");
                     builder.append(cacheEntry.summary);
-                    builder.append(" [").append((char)3).append("10").append(cacheEntry.status).append((char) 15).append(',');
-                    builder.append((char)3).append('7').append(' ').append(cacheEntry.priority).append((char) 15).append(',');
-                    builder.append((char)3).append('6').append(' ').append(cacheEntry.assignee).append((char) 15).append("] ");
-                    builder.append(cacheEntry.link);
+                    builder.append(" [").fc(10).append(cacheEntry.status).nc().append(',');
+                    builder.fc(7).append(' ').append(cacheEntry.priority).nc().append(',');
+                    builder.fc(6).append(' ').append(cacheEntry.assignee).nc().append("] ");
+                    builder.append(key);
                 }
-                bot.sendMessage(channel, builder.toString());
-                builder.setLength(0);
+                event.respond(builder.toString());
+                builder.clear();
             }
             return false;
         } finally {
@@ -191,32 +167,17 @@ public final class YouTrackMessageHandler extends MessageHandler {
         }
     }
 
-    public boolean onMessage(final JBossBot bot, final String channel, final String sender, final String login, final String hostname, final String msg) {
-        return doHandle(bot, channel, msg);
-    }
+    private static final byte[] junk = new byte[8192];
 
-    public boolean onAction(final JBossBot bot, final String sender, final String login, final String hostname, final String target, final String action) {
-        return doHandle(bot, target, action);
-    }
-
-    public boolean onPrivateMessage(final JBossBot bot, final String sender, final String login, final String hostname, final String msg) {
-        return doHandle(bot, sender, msg);
-    }
-
-    public boolean onSend(final JBossBot bot, final String target, final String msg) {
-        return doHandle(bot, target, msg);
-    }
-
-    private CacheEntry lookup(final Site site, final String key, final long timestamp) {
+    private CacheEntry lookup(final String key, final String id, final long timestamp) {
         try {
-            final URL url = new URL(site.urlPrefix + "rest/issue/" + key);
-            final URI userUri = new URI(site.urlPrefix + "/issue/" + key).normalize();
+            final URL url = new URL(key + "&ctype=xml");
             final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             try {
                 final int code = conn.getResponseCode();
                 if (code != 200) {
                     if (code == 301 || code == 302 || code == 303) {
-                        return new CacheEntry(timestamp, key, null, null, null, null, null, conn.getHeaderField("Location"));
+                        return new CacheEntry(timestamp, key, id, null, null, null, null, null, null, conn.getHeaderField("Location"));
                     }
                     System.err.println("URL " + url + " returned status " + code);
                     return null;
@@ -225,11 +186,14 @@ public final class YouTrackMessageHandler extends MessageHandler {
                 try {
                     XMLStreamReader reader = XMLInputFactory.newInstance().createXMLStreamReader(is);
                     try {
-                        return parseDocument(reader, timestamp, userUri.toString());
+                        return parseDocument(key, reader, timestamp, url.toURI().toString());
                     } finally {
                         reader.close();
                     }
                 } finally {
+                    try {
+                        while (is.read(junk) > -1);
+                    } catch (IOException ignored) {}
                     is.close();
                 }
             } finally {
@@ -250,17 +214,29 @@ public final class YouTrackMessageHandler extends MessageHandler {
     enum Element {
         UNKNOWN,
 
-        ISSUE,
-        FIELD,
-        VALUE,
+        BUGZILLA,
+        BUG,
+        BUG_ID,
+        ASSIGNED_TO,
+        BUG_SEVERITY,
+        CF_TYPE,
+        PRODUCT,
+        SHORT_DESC,
+        BUG_STATUS,
         ;
         private static final Map<QName, Element> elements;
 
         static {
             Map<QName, Element> elementsMap = new HashMap<QName, Element>();
-            elementsMap.put(new QName("issue"), Element.ISSUE);
-            elementsMap.put(new QName("field"), Element.FIELD);
-            elementsMap.put(new QName("value"), Element.VALUE);
+            elementsMap.put(new QName("bugzilla"), Element.BUGZILLA);
+            elementsMap.put(new QName("bug"), Element.BUG);
+            elementsMap.put(new QName("bug_id"), Element.BUG_ID);
+            elementsMap.put(new QName("assigned_to"), Element.ASSIGNED_TO);
+            elementsMap.put(new QName("bug_severity"), Element.BUG_SEVERITY);
+            elementsMap.put(new QName("cf_type"), Element.CF_TYPE);
+            elementsMap.put(new QName("product"), Element.PRODUCT);
+            elementsMap.put(new QName("short_desc"), Element.SHORT_DESC);
+            elementsMap.put(new QName("bug_status"), Element.BUG_STATUS);
             elements = elementsMap;
         }
 
@@ -271,17 +247,17 @@ public final class YouTrackMessageHandler extends MessageHandler {
 
     }
 
-    private static CacheEntry parseDocument(XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
+    private static CacheEntry parseDocument(final String key, XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
         while (reader.hasNext()) {
-            switch (reader.nextTag()) {
+            switch (reader.next()) {
                 case XMLStreamConstants.START_DOCUMENT: {
-                    return parseRootElement(reader, timestamp, link);
+                    return parseRootElement(key, reader, timestamp, link);
                 }
                 case XMLStreamConstants.START_ELEMENT: {
-                    if (Element.of(reader.getName()) != Element.ISSUE) {
+                    if (Element.of(reader.getName()) != Element.BUGZILLA) {
                         return null;
                     }
-                    return parseIssueContents(reader, timestamp, link);
+                    return parseBugzillaContents(key, reader, timestamp, link);
                 }
                 default: {
                     // ignore
@@ -292,14 +268,14 @@ public final class YouTrackMessageHandler extends MessageHandler {
         return null;
     }
 
-    private static CacheEntry parseRootElement(final XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
+    private static CacheEntry parseRootElement(final String key, final XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
         while (reader.hasNext()) {
             switch (reader.nextTag()) {
                 case XMLStreamConstants.START_ELEMENT: {
-                    if (Element.of(reader.getName()) != Element.ISSUE) {
+                    if (Element.of(reader.getName()) != Element.BUGZILLA) {
                         return null;
                     }
-                    return parseIssueContents(reader, timestamp, link);
+                    return parseBugzillaContents(key, reader, timestamp, link);
                 }
                 default: {
                     // ignore
@@ -310,36 +286,65 @@ public final class YouTrackMessageHandler extends MessageHandler {
         return null;
     }
 
-    private static CacheEntry parseIssueContents(final XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
+    private static CacheEntry parseBugzillaContents(final String key, final XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
+        while (reader.hasNext()) {
+            switch (reader.nextTag()) {
+                case XMLStreamConstants.START_ELEMENT: {
+                    if (Element.of(reader.getName()) != Element.BUG) {
+                        return null;
+                    }
+                    for (int i = 0; i < reader.getAttributeCount(); i ++) {
+                        if ("error".equals(reader.getAttributeLocalName(i))) {
+                            return null;
+                        }
+                    }
+                    return parseBugContents(key, reader, timestamp, link);
+                }
+                default: {
+                    // ignore
+                    break;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static CacheEntry parseBugContents(final String key, final XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
         String summary = null;
-        String key = reader.getAttributeValue(null, "id");
-        String status = null;
-        String priority = null;
-        String kind = null;
+        String status = "(?)";
+        String priority = "(?)";
+        String kind = "(?)";
         String assignee = "(unassigned)";
+        String id = "(?)";
+        String product = "(?)";
         while (reader.hasNext()) {
             switch (reader.nextTag()) {
                 case XMLStreamConstants.START_ELEMENT: {
                     final Element element = Element.of(reader.getName());
-                    if (element == Element.FIELD) {
-                        String name = reader.getAttributeValue(XMLConstants.NULL_NS_URI, "name");
-                        if (name.equalsIgnoreCase("summary")) {
-                            summary = parseValue(reader);
-                        } else if (name.equalsIgnoreCase("state")) {
-                            status = parseValue(reader);
-                        } else if (name.equalsIgnoreCase("priority")) {
-                            priority = parseValue(reader);
-                        } else if (name.equalsIgnoreCase("assigneeFullName")) {
-                            assignee = parseValue(reader);
-                        } else if (name.equalsIgnoreCase("type")) {
-                            kind = parseValue(reader);
+                    if (element == Element.SHORT_DESC) {
+                        summary = parseValue(reader);
+                    } else if (element == Element.CF_TYPE) {
+                        kind = parseValue(reader);
+                    } else if (element == Element.ASSIGNED_TO) {
+                        for (int i = 0; i < reader.getAttributeCount(); i ++) {
+                            if ("name".equals(reader.getAttributeLocalName(i))) {
+                                assignee = reader.getAttributeValue(i);
+                            }
                         }
+                        consumeElement(reader);
+                    } else if (element == Element.BUG_SEVERITY) {
+                        priority = parseValue(reader);
+                    } else if (element == Element.BUG_STATUS) {
+                        status = parseValue(reader);
+                    } else if (element == Element.PRODUCT) {
+                        product = parseValue(reader);
+                    } else {
+                        consumeElement(reader);
                     }
-                    consumeElement(reader);
                     break;
                 }
                 case XMLStreamConstants.END_ELEMENT: {
-                    return new CacheEntry(timestamp, key, summary, status + " " + kind, priority, assignee, link, null);
+                    return new CacheEntry(timestamp, key, id, product, summary, status + " " + kind, priority, assignee, link, null);
                 }
                 default: {
                     // ignore
@@ -351,14 +356,7 @@ public final class YouTrackMessageHandler extends MessageHandler {
     }
 
     private static String parseValue(final XMLStreamReader reader) throws XMLStreamException {
-        if (reader.nextTag() != XMLStreamConstants.START_ELEMENT) {
-            throw new XMLStreamException("Unexpected content");
-        }
-        if (!reader.getLocalName().equals("value")) {
-            throw new XMLStreamException("Unexpected content: " + reader.getName());
-        }
-        final String text = reader.getElementText();
-        return text;
+        return reader.getElementText().trim();
     }
 
     private static void consumeElement(final XMLStreamReader reader) throws XMLStreamException {

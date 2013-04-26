@@ -71,9 +71,9 @@
     </organization>
     <dependencies>
         <dependency>
-            <groupId>pircbot</groupId>
-            <artifactId>pircbot</artifactId>
-            <version>1.5.0</version>
+            <groupId>org.pircbotx</groupId>
+            <artifactId>pircbotx</artifactId>
+            <version>1.9</version>
         </dependency>
         <dependency>
             <groupId>com.zwitserloot.json</groupId>
@@ -81,9 +81,10 @@
             <version>1.0</version>
         </dependency>
         <dependency>
-            <groupId>org.jboss.logmanager</groupId>
-            <artifactId>jboss-logmanager</artifactId>
-            <version>1.2.0.CR1</version>
+            <groupId>com.google.code.spi</groupId>
+            <artifactId>spi</artifactId>
+            <version>0.2.4</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
     <build>
@@ -108,32 +109,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.jboss.maven.plugins</groupId>
-                <artifactId>maven-injection-plugin</artifactId>
-                <version>1.0.2</version>
-                <executions>
-                    <execution>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>bytecode</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <bytecodeInjections>
-                        <bytecodeInjection>
-                            <expression>${project.version}</expression>
-                            <targetMembers>
-                                <methodBodyReturn>
-                                    <className>org.jboss.bot.Version</className>
-                                    <methodName>getVersionString</methodName>
-                                </methodBodyReturn>
-                            </targetMembers>
-                        </bytecodeInjection>
-                    </bytecodeInjections>
-                </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-jar-plugin</artifactId>

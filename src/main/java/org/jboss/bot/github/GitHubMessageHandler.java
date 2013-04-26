@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2010, Red Hat Middleware LLC, and individual contributors
+ * Copyright 2013, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -20,7 +20,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot;
+package org.jboss.bot.github;
 
 import com.zwitserloot.json.JSON;
 import java.io.BufferedInputStream;
@@ -29,22 +29,23 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashSet;
-import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jboss.bot.JBossBot;
+import org.pircbotx.hooks.ListenerAdapter;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class GitHubMessageHandler extends MessageHandler {
+public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
     private final ThreadLocal<RecursionState> recursionState = new ThreadLocal<RecursionState>() {
         protected RecursionState initialValue() {
             return new RecursionState();
         }
     };
 
-    public GitHubMessageHandler(Properties properties) {
+    public GitHubMessageHandler() {
 
     }
 

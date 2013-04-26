@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2011, Red Hat Middleware LLC, and individual contributors
+ * Copyright 2013, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -20,31 +20,32 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot;
+package org.jboss.bot.admin;
 
-import org.jibble.pircbot.PircBot;
+import org.jboss.bot.JBossBot;
+import org.jboss.bot.JBossBotServiceProvider;
+import org.jboss.bot.Mask;
+import org.mangosdk.spi.ProviderFor;
+
+import com.sun.net.httpserver.HttpServer;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class InviteAction implements Action {
-    private final String nick;
-    private final String channel;
+@ProviderFor(JBossBotServiceProvider.class)
+public final class AdministrationProvider implements JBossBotServiceProvider {
 
-    public InviteAction(final String nick, final String channel) {
-        this.nick = nick;
-        this.channel = channel;
-    }
-
-    public String getChannel() {
-        return channel;
-    }
-
-    public String getNick() {
-        return nick;
-    }
-
-    public void execute(final PircBot bot) {
-        bot.sendInvite(nick, channel);
+    public void register(final JBossBot bot, final HttpServer httpServer) {
+        final Administration administration = new Administration();
+        bot.getListenerManager().addListener(administration);
+        final String admins = bot.getPrefNode().get("admins", "*!*@redhat/jboss/dmlloyd");
+        if (admins != null && ! admins.isEmpty()) {
+            final String[] adminArray = admins.split(", *");
+            if (adminArray != null) for (String mask : adminArray) {
+                if (mask != null && ! mask.isEmpty()) {
+                    administration.addAdmin(new Mask(mask));
+                }
+            }
+        }
     }
 }
