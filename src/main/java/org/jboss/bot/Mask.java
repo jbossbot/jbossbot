@@ -80,6 +80,6 @@ public final class Mask {
     }
 
     public boolean matches(final User user) {
-        return matches(user.getNick(), user.getLogin(), user.getServer());
+        return matches(user.getNick(), user.getLogin(), user.getHostmask());
     }
 }

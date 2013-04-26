@@ -78,7 +78,7 @@ public final class YouTrackMessageHandler extends ListenerAdapter<JBossBot> {
 
         synchronized (userMap) {
             final long now = System.nanoTime();
-            final Map<String, Long> timeMap = getUserTimeMap(user, dupTime, now);
+            final Map<String, Long> timeMap = getUserTimeMap(user, dupTime);
             for (String key : keys) {
                 final Long time = timeMap.get(key);
                 if (time == null) {
@@ -112,7 +112,7 @@ public final class YouTrackMessageHandler extends ListenerAdapter<JBossBot> {
 
         synchronized (channelMap) {
             final long now = System.nanoTime();
-            final Map<String, Long> timeMap = getChannelTimeMap(channel, dupTime, now);
+            final Map<String, Long> timeMap = getChannelTimeMap(channel, dupTime);
             for (String key : keys) {
                 final Long time = timeMap.get(key);
                 if (time == null) {
@@ -127,24 +127,24 @@ public final class YouTrackMessageHandler extends ListenerAdapter<JBossBot> {
         processKeys(event, keepKeys);
     }
 
-    private Map<String, Long> getChannelTimeMap(final Channel channel, final long dupTime, final long now) {
+    private Map<String, Long> getChannelTimeMap(final Channel channel, final long dupTime) {
         Map<String, Long> timeMap = channelMap.get(channel);
         if (timeMap == null) {
             channelMap.put(channel, timeMap = new LinkedHashMap<String, Long>() {
                 protected boolean removeEldestEntry(final Map.Entry<String, Long> eldest) {
-                    return eldest.getValue().longValue() + dupTime >= now;
+                    return eldest.getValue().longValue() + dupTime < System.nanoTime();
                 }
             });
         }
         return timeMap;
     }
 
-    private Map<String, Long> getUserTimeMap(final User user, final long dupTime, final long now) {
+    private Map<String, Long> getUserTimeMap(final User user, final long dupTime) {
         Map<String, Long> timeMap = userMap.get(user);
         if (timeMap == null) {
             userMap.put(user, timeMap = new LinkedHashMap<String, Long>() {
                 protected boolean removeEldestEntry(final Map.Entry<String, Long> eldest) {
-                    return eldest.getValue().longValue() + dupTime >= now;
+                    return eldest.getValue().longValue() + dupTime < System.nanoTime();
                 }
             });
         }

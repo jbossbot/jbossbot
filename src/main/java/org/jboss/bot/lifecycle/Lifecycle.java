@@ -27,9 +27,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
 import org.jboss.bot.JBossBot;
 import org.pircbotx.exception.IrcException;
+import org.pircbotx.hooks.Event;
 import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.ConnectEvent;
 import org.pircbotx.hooks.events.DisconnectEvent;
+import org.pircbotx.hooks.events.MotdEvent;
 import org.pircbotx.hooks.events.NoticeEvent;
 
 /**
@@ -46,14 +48,11 @@ public final class Lifecycle extends ListenerAdapter<JBossBot> {
 
     public void onNotice(final NoticeEvent<JBossBot> event) throws Exception {
         if (! identified.get()) {
-            final Preferences preferences = Preferences.userRoot().node("jbossbot");
+            final Preferences preferences = event.getBot().getPrefNode();
             final String sourceNick = event.getUser().getNick();
             final String notice = event.getMessage();
             if (sourceNick.equals("NickServ") && notice.contains("This nickname is registered.")) {
-                final String password = preferences.node("nickserv").get("password", null);
-                if (password != null) {
-                    event.getBot().sendMessage("NickServ", "identify " + password);
-                }
+                tryIdentify(event, preferences);
             } else if (sourceNick.equals("NickServ") && notice.contains("You are now identified for")) {
                 identified.set(true);
                 final Preferences channelsNode = preferences.node("channels");
@@ -71,9 +70,27 @@ public final class Lifecycle extends ListenerAdapter<JBossBot> {
                 }
             }
         }
+        super.onNotice(event);
+    }
+
+    private void tryIdentify(final Event<JBossBot> event, final Preferences preferences) {
+        if (! identified.get()) {
+            final String password = preferences.node("nickserv").get("password", null);
+            if (password != null) {
+                event.getBot().sendMessage("NickServ", "identify " + preferences.get("nick", "jbossbot") + " " + password);
+            } else {
+                System.out.println("No nickserv password configured");
+            }
+        }
+    }
+
+    public void onMotd(final MotdEvent<JBossBot> event) throws Exception {
+        tryIdentify(event, event.getBot().getPrefNode());
+        super.onMotd(event);
     }
 
     public void onDisconnect(final DisconnectEvent<JBossBot> event) throws Exception {
+        identified.set(false);
         for (;;) {
             try {
                 Thread.sleep(10000L);
@@ -81,6 +98,9 @@ public final class Lifecycle extends ListenerAdapter<JBossBot> {
                 // xx
             }
             try {
+                try {
+                    event.getBot().disconnect();
+                } catch (Throwable ignored) {}
                 event.getBot().connect();
                 return;
             } catch (IOException e) {

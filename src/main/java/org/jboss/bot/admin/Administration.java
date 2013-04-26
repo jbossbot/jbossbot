@@ -44,8 +44,10 @@ public final class Administration extends ListenerAdapter<JBossBot> {
     private static final Pattern LEAVE = Pattern.compile("^%leave$");
     private static final Pattern JOIN = Pattern.compile("^%join +([^ ,]+(?:, *[^ ,]+)*)");
     private static final Pattern PART = Pattern.compile("^%part +([^ ,]+(?:, *[^ ,]+)*)");
-    private static final Pattern GET = Pattern.compile("^%get +((?:[^/ ]+(?:/[^/ ]+)*)");
-    private static final Pattern SET = Pattern.compile("^%set +((?:[^/ ]+(?:/[^/ ]+)*) +(.*)");
+    private static final Pattern REMOVE = Pattern.compile("^%remove +(?:((?:[^/ ]+/)*(?:[^/ ]+))/)?([^/ ]+)");
+    private static final Pattern GET = Pattern.compile("^%get +(?:((?:[^/ ]+/)*(?:[^/ ]+))/)?([^/ ]+)");
+    private static final Pattern SET = Pattern.compile("^%set +(?:((?:[^/ ]+/)*(?:[^/ ]+))/)?([^/ ]+) +(.*)");
+    private static final Pattern RECONNECT = Pattern.compile("^%reconnect$");
 
     void addAdmin(Mask mask) {
         admins.add(mask);
@@ -100,22 +102,50 @@ public final class Administration extends ListenerAdapter<JBossBot> {
         }
         final Matcher getMatcher = GET.matcher(trimmed);
         if (getMatcher.matches()) {
-            String key = getMatcher.group(1);
-            final Preferences prefNode = bot.getPrefNode();
-            if (prefNode.nodeExists(key)) {
-                event.respond(new IrcStringBuilder().append(' ').fc(10).append(key).nc().append("=").b().append(prefNode.get(key, "")).b().nc().toString());
-            } else {
-                event.respond(new IrcStringBuilder().append(' ').fc(10).append(key).nc().append(" not found").toString());
+            final String path = getMatcher.group(1);
+            final String key = getMatcher.group(2);
+            Preferences prefNode = bot.getPrefNode();
+            if (path != null && ! path.isEmpty()) {
+                prefNode = prefNode.node(path);
             }
+            final String value = prefNode.get(key, null);
+            if (value != null) {
+                event.respond(new IrcStringBuilder().fc(10).append(key).nc().append("=").b().append(value).b().nc().toString());
+            } else {
+                event.respond(new IrcStringBuilder().fc(10).append(key).nc().append(" not found").toString());
+            }
+            return;
+        }
+        final Matcher removeMatcher = REMOVE.matcher(trimmed);
+        if (removeMatcher.matches()) {
+            final String path = removeMatcher.group(1);
+            final String key = removeMatcher.group(2);
+            Preferences prefNode = bot.getPrefNode();
+            if (path != null && ! path.isEmpty()) {
+                prefNode = prefNode.node(path);
+            }
+            prefNode.remove(key);
+            prefNode.flush();
+            event.respond(new IrcStringBuilder().fc(10).append(key).nc().append(" removed").toString());
             return;
         }
         final Matcher setMatcher = SET.matcher(trimmed);
         if (setMatcher.matches()) {
-            final String key = setMatcher.group(1);
-            final String value = setMatcher.group(2);
-            final Preferences prefNode = bot.getPrefNode();
+            final String path = setMatcher.group(1);
+            final String key = setMatcher.group(2);
+            final String value = setMatcher.group(3);
+            Preferences prefNode = bot.getPrefNode();
+            if (path != null && ! path.isEmpty()) {
+                prefNode = prefNode.node(path);
+            }
             prefNode.put(key, value);
-            event.respond(new IrcStringBuilder().append(' ').fc(10).append(key).nc().append(" set to ").b().append(prefNode.get(key, "")).b().nc().toString());
+            prefNode.flush();
+            event.respond(new IrcStringBuilder().fc(10).append(key).nc().append(" set to ").b().append(prefNode.get(key, "")).b().nc().toString());
+        }
+        final Matcher reconnectMatcher = RECONNECT.matcher(trimmed);
+        if (reconnectMatcher.matches()) {
+            event.getBot().quitServer("I was told to reconnect");
+            return;
         }
     }
 }

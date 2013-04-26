@@ -70,7 +70,7 @@ public final class JBossBot extends PircBotX {
         setVersion(prefs.get("version", "JBoss Bot, accept no substitute!"));
     }
 
-    private int sem;
+    private int sem = 5;
 
     public Preferences getPrefNode() {
         return prefNode;
@@ -93,19 +93,20 @@ public final class JBossBot extends PircBotX {
     public long getMessageDelay() {
         if (Thread.currentThread() instanceof OutputThread) {
             synchronized (this) {
-                final int v = --sem;
+                int v = --sem;
                 if (v == 0) {
                     sendRawLineNow("PING sync" + (System.nanoTime() & 0x0fffffff));
                     do {
                         try {
                             wait();
+                            v = sem;
                         } catch (InterruptedException e) {
                         }
                     } while (v == 0);
                 }
             }
         }
-        return 0L;
+        return 1L;
     }
 
     protected void handleLine(final String s) throws IOException {
@@ -114,9 +115,8 @@ public final class JBossBot extends PircBotX {
                 sem += prefNode.getInt("window", 5);
                 notifyAll();
             }
-        } else {
-            super.handleLine(s);
         }
+        super.handleLine(s);
     }
 
     public void dispatchEvent(final Event<?> event) {

@@ -236,4 +236,8 @@ public final class IrcStringBuilder {
     public void setLength(final int newLength) {
         b.setLength(newLength);
     }
+
+    public String toString() {
+        return b.toString();
+    }
 }

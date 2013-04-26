@@ -75,6 +75,7 @@ public final class Main {
         final JBossBot bot = new JBossBot(socketFactory);
 
         for (JBossBotServiceProvider provider : ServiceLoader.load(JBossBotServiceProvider.class, Main.class.getClassLoader())) {
+            System.out.println("Registering " + provider);
             provider.register(bot, server);
         }
 
