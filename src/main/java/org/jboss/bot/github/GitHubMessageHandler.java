@@ -33,12 +33,16 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.bot.JBossBot;
+import org.jboss.logging.Logger;
 import org.pircbotx.hooks.ListenerAdapter;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
+
+    private static final Logger log = Logger.getLogger("org.jboss.bot.github");
+
     private final ThreadLocal<RecursionState> recursionState = new ThreadLocal<RecursionState>() {
         protected RecursionState initialValue() {
             return new RecursionState();
@@ -120,7 +124,7 @@ public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
             try {
                 final int code = conn.getResponseCode();
                 if (code != 200) {
-                    System.err.println("URL " + url + " returned status " + code);
+                    log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
                     return;
                 }
                 final StringBuilder b = new StringBuilder();
@@ -171,7 +175,7 @@ public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
             try {
                 final int code = conn.getResponseCode();
                 if (code != 200) {
-                    System.err.println("URL " + url + " returned status " + code);
+                    log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
                     return;
                 }
                 final StringBuilder b = new StringBuilder();

@@ -102,7 +102,7 @@ public abstract class AbstractJSONServlet extends HttpServlet {
                 String p;
                 int sidx = s.indexOf("payload=");
                 if (sidx == -1) {
-                    System.out.println("No payload");
+                    log.debug("No payload");
                     return;
                 }
                 int eidx = s.indexOf('&', sidx);

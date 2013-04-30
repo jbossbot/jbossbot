@@ -43,6 +43,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
+import org.jboss.logging.Logger;
 import org.pircbotx.Channel;
 import org.pircbotx.User;
 import org.pircbotx.hooks.ListenerAdapter;
@@ -58,6 +59,8 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
 public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
+
+    private static final Logger log = Logger.getLogger("org.jboss.bot.jira");
 
     private static final Pattern JIRA_KEY = Pattern.compile("\\b([A-Z]{2}[A-Z0-9]*)-\\d+", Pattern.CASE_INSENSITIVE);
 
@@ -312,7 +315,7 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
                     if (code == 301 || code == 302 || code == 303) {
                         return new IssueInfo(key, null, null, null, null, null, conn.getHeaderField("Location"), null, null, null);
                     }
-                    System.err.println("URL " + url + " returned status " + code);
+                    log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
                     return null;
                 }
                 final InputStream is = conn.getInputStream();

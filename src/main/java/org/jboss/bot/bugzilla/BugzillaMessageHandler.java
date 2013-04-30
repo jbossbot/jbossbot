@@ -37,6 +37,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
+import org.jboss.logging.Logger;
 import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.ActionEvent;
 import org.pircbotx.hooks.events.MessageEvent;
@@ -50,6 +51,8 @@ import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
 public final class BugzillaMessageHandler extends ListenerAdapter<JBossBot> {
+
+    private static final Logger log = Logger.getLogger("org.jboss.bot.bugzilla");
 
     private final long dupeTime;
     private final long expireTime;
@@ -179,7 +182,8 @@ public final class BugzillaMessageHandler extends ListenerAdapter<JBossBot> {
                     if (code == 301 || code == 302 || code == 303) {
                         return new CacheEntry(timestamp, key, id, null, null, null, null, null, null, conn.getHeaderField("Location"));
                     }
-                    System.err.println("URL " + url + " returned status " + code);
+
+                    log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
                     return null;
                 }
                 final InputStream is = conn.getInputStream();

@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
 import org.jboss.bot.JBossBot;
+import org.jboss.logging.Logger;
 import org.pircbotx.exception.IrcException;
 import org.pircbotx.hooks.Event;
 import org.pircbotx.hooks.ListenerAdapter;
@@ -40,6 +41,8 @@ import org.pircbotx.hooks.events.NoticeEvent;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public final class Lifecycle extends ListenerAdapter<JBossBot> {
+
+    private static final Logger log = Logger.getLogger("org.jboss.bot.lifecycle");
     private final AtomicBoolean identified = new AtomicBoolean();
 
     public void onConnect(final ConnectEvent<JBossBot> event) throws Exception {
@@ -79,7 +82,7 @@ public final class Lifecycle extends ListenerAdapter<JBossBot> {
             if (password != null) {
                 event.getBot().sendMessage("NickServ", "identify " + preferences.get("nick", "jbossbot") + " " + password);
             } else {
-                System.out.println("No nickserv password configured");
+               log.warn("No nickserv password configured");
             }
         }
     }

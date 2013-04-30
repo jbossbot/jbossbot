@@ -29,6 +29,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.prefs.Preferences;
 import java.util.regex.Pattern;
+import org.jboss.logging.Logger;
 import org.pircbotx.Channel;
 import org.pircbotx.OutputThread;
 import org.pircbotx.PircBotX;
@@ -44,12 +45,14 @@ import javax.net.SocketFactory;
 @SuppressWarnings("unchecked")
 public final class JBossBot extends PircBotX {
 
+    private static final Logger log = Logger.getLogger("org.jboss.bot");
+
     private static final Pattern PONG_PATTERN = Pattern.compile("PONG [^ ]+ :sync\\d+$");
 
     private final Preferences prefNode = Preferences.userRoot().node("jbossbot");
 
     public JBossBot() {
-        System.out.println("Configuring...");
+        log.debug("Configuring...");
         Preferences prefs = prefNode;
         try {
             setEncoding(prefs.get("encoding", "UTF-8"));

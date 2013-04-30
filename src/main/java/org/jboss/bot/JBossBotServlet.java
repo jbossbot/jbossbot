@@ -25,6 +25,7 @@ package org.jboss.bot;
 import java.io.IOException;
 import java.util.ServiceLoader;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.jboss.logging.Logger;
 import org.pircbotx.exception.IrcException;
 
 import javax.servlet.ServletException;
@@ -38,6 +39,9 @@ import javax.servlet.http.HttpServletResponse;
  */
 @WebServlet
 public final class JBossBotServlet extends HttpServlet {
+
+    private static final Logger log = Logger.getLogger("org.jboss.bot");
+
     private final CopyOnWriteArrayList<HttpServlet> subServlets = new CopyOnWriteArrayList<HttpServlet>();
     private volatile JBossBot bot;
 
@@ -45,7 +49,7 @@ public final class JBossBotServlet extends HttpServlet {
         final JBossBot bot = new JBossBot();
 
         for (JBossBotServiceProvider provider : ServiceLoader.load(JBossBotServiceProvider.class, JBossBotServlet.class.getClassLoader())) {
-            System.out.println("Registering " + provider);
+            log.debugf("Registering %s", provider);
             provider.register(bot, this);
         }
 

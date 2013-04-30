@@ -30,6 +30,7 @@ import java.util.Map;
 import org.jboss.bot.AbstractJSONServlet;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
+import org.jboss.logging.Logger;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -39,6 +40,9 @@ import javax.servlet.http.HttpServletResponse;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public final class GitHubHttpHandler extends AbstractJSONServlet {
+
+    private static final Logger log = Logger.getLogger("org.jboss.bot.github");
+
     private final JBossBot bot;
     private final GitHubMessageHandler messageHandler;
 
@@ -59,11 +63,11 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
         int limit = 7;
         final String path = req.getContextPath();
         if (path == null) {
-            System.err.println("Request with no path");
+            log.debug("Request with no path");
             return;
         }
         if (! path.startsWith("/jbossbot/")) {
-            System.err.println("Request with wrong path");
+            log.debug("Request with wrong path");
             return;
         }
         String channel = path.substring(10);
