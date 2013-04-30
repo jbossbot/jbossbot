@@ -20,41 +20,51 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot.http;
+package org.jboss.bot;
 
 import com.zwitserloot.json.JSON;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URI;
 import java.net.URLDecoder;
-import java.util.List;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Map;
+import org.jboss.logging.Logger;
 
-import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import static org.jboss.bot.JBossBot.safeClose;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public abstract class JSONHttpHandler implements HttpHandler {
+public abstract class AbstractJSONServlet extends HttpServlet {
 
-    public final void handle(final HttpExchange httpExchange) throws IOException {
-        final Headers requestHeaders = httpExchange.getRequestHeaders();
+    private static final Logger log = Logger.getLogger("org.jboss.bot");
 
-        System.out.println("Request: " + httpExchange.getRequestURI().toString());
+    protected void doPost(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
+        final Enumeration<String> requestHeaders = req.getHeaderNames();
 
-        for (String key : requestHeaders.keySet()) {
-            final List<String> list = requestHeaders.get(key);
-            if (list != null) for (String value : list) {
-                System.out.println("Header: " + key + "=" + value);
+        log.debugf("Request: %s", req.getRequestURI());
+
+        while (requestHeaders.hasMoreElements()) {
+            String key = requestHeaders.nextElement();
+            final Enumeration<String> list = req.getHeaders(key);
+            if (list != null) {
+                while (list.hasMoreElements()) {
+                    String value = list.nextElement();
+                    log.debugf("Header: %s = %s", key, value);
+                }
             }
         }
 
-        final Headers queryParams = new Headers();
+        final Map<String, String> queryParams = new HashMap<String, String>();
 
-        final URI uri = httpExchange.getRequestURI();
-        final String rawQuery = uri.getRawQuery();
+        final String rawQuery = req.getQueryString();
         if (rawQuery != null) {
             final String[] parts = rawQuery.split("[&]");
             if (parts != null) for (String part : parts) {
@@ -63,17 +73,17 @@ public abstract class JSONHttpHandler implements HttpHandler {
                 if (idx == -1) {
                     key = part;
                     value = null;
-                    queryParams.add(key, "");
+                    queryParams.put(key, "");
                 } else {
                     key = part.substring(0, idx);
                     value = part.substring(idx + 1);
-                    queryParams.add(key, value);
+                    queryParams.put(key, value);
                 }
             }
         }
 
-        boolean xlate =  "application/x-www-form-urlencoded".equals(requestHeaders.getFirst("Content-type"));
-        final InputStream requestBody = httpExchange.getRequestBody();
+        boolean xlate =  "application/x-www-form-urlencoded".equals(req.getHeader("Content-type"));
+        final InputStream requestBody = req.getInputStream();
         try {
             final InputStreamReader rawReader = new InputStreamReader(requestBody, "UTF-8");
             StringBuilder b = new StringBuilder();
@@ -82,7 +92,11 @@ public abstract class JSONHttpHandler implements HttpHandler {
             while ((res = rawReader.read(buf)) != -1) {
                 b.append(buf, 0, res);
             }
-            httpExchange.sendResponseHeaders(200, -1L);
+            safeClose(requestBody);
+            resp.setContentLength(0);
+            resp.setStatus(100);
+            resp.flushBuffer();
+            safeClose(resp.getOutputStream());
             String s = b.toString();
             if (xlate) {
                 String p;
@@ -96,15 +110,15 @@ public abstract class JSONHttpHandler implements HttpHandler {
                 s = URLDecoder.decode(p, "UTF-8");
             }
             JSON json = JSON.parse(s);
-            handle(requestHeaders, queryParams, uri, json);
+            handleRequest(req, resp, queryParams, json);
         } catch (RuntimeException e) {
             e.printStackTrace();
             throw e;
         } finally {
-            requestBody.close();
-            httpExchange.close();
+            safeClose(requestBody);
         }
+
     }
 
-    public abstract void handle(Headers requestHeaders, Headers queryParams, URI uri, JSON json) throws IOException;
+    protected abstract void handleRequest(final HttpServletRequest req, HttpServletResponse resp, final Map<String, String> queryParams, JSON payload) throws IOException;
 }

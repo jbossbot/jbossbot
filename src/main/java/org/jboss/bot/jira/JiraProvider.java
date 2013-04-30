@@ -24,9 +24,8 @@ package org.jboss.bot.jira;
 
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotServiceProvider;
+import org.jboss.bot.JBossBotServlet;
 import org.mangosdk.spi.ProviderFor;
-
-import com.sun.net.httpserver.HttpServer;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
@@ -34,9 +33,9 @@ import com.sun.net.httpserver.HttpServer;
 @ProviderFor(JBossBotServiceProvider.class)
 public final class JiraProvider implements JBossBotServiceProvider {
 
-    public void register(final JBossBot bot, final HttpServer httpServer) {
+    public void register(final JBossBot bot, final JBossBotServlet servlet) {
         final JiraMessageHandler messageHandler = new JiraMessageHandler();
         bot.getListenerManager().addListener(messageHandler);
-        httpServer.createContext("/jbossbot/JIRA", new JiraHttpHandler(bot, messageHandler));
+        servlet.register(new JiraHttpHandler(bot, messageHandler));
     }
 }

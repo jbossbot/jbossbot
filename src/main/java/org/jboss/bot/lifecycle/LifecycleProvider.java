@@ -24,9 +24,8 @@ package org.jboss.bot.lifecycle;
 
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotServiceProvider;
+import org.jboss.bot.JBossBotServlet;
 import org.mangosdk.spi.ProviderFor;
-
-import com.sun.net.httpserver.HttpServer;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
@@ -34,7 +33,7 @@ import com.sun.net.httpserver.HttpServer;
 @ProviderFor(JBossBotServiceProvider.class)
 public final class LifecycleProvider implements JBossBotServiceProvider {
 
-    public void register(final JBossBot bot, final HttpServer httpServer) {
+    public void register(final JBossBot bot, final JBossBotServlet servlet) {
         bot.getListenerManager().addListener(new Lifecycle());
     }
 }

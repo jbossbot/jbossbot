@@ -24,10 +24,9 @@ package org.jboss.bot.admin;
 
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotServiceProvider;
+import org.jboss.bot.JBossBotServlet;
 import org.jboss.bot.Mask;
 import org.mangosdk.spi.ProviderFor;
-
-import com.sun.net.httpserver.HttpServer;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
@@ -35,7 +34,7 @@ import com.sun.net.httpserver.HttpServer;
 @ProviderFor(JBossBotServiceProvider.class)
 public final class AdministrationProvider implements JBossBotServiceProvider {
 
-    public void register(final JBossBot bot, final HttpServer httpServer) {
+    public void register(final JBossBot bot, final JBossBotServlet servlet) {
         final Administration administration = new Administration();
         bot.getListenerManager().addListener(administration);
         final String admins = bot.getPrefNode().get("admins", "*!*@redhat/jboss/dmlloyd");

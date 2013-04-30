@@ -40,7 +40,6 @@ import org.pircbotx.hooks.events.MessageEvent;
 import org.pircbotx.hooks.events.PrivateMessageEvent;
 
 import javax.net.SocketFactory;
-import javax.net.ssl.SSLSocketFactory;
 
 @SuppressWarnings("unchecked")
 public final class JBossBot extends PircBotX {
@@ -48,10 +47,8 @@ public final class JBossBot extends PircBotX {
     private static final Pattern PONG_PATTERN = Pattern.compile("PONG [^ ]+ :sync\\d+$");
 
     private final Preferences prefNode = Preferences.userRoot().node("jbossbot");
-    private final SSLSocketFactory sslSocketFactory;
 
-    public JBossBot(final SSLSocketFactory sslSocketFactory) {
-        this.sslSocketFactory = sslSocketFactory;
+    public JBossBot() {
         System.out.println("Configuring...");
         Preferences prefs = prefNode;
         try {
@@ -83,7 +80,7 @@ public final class JBossBot extends PircBotX {
         final int port = prefs.getInt("server-port", 6667);
         final SocketFactory socketFactory;
         if (ssl) {
-            socketFactory = sslSocketFactory;
+            socketFactory = JBossBotUtils.getSSLSocketFactory();
         } else {
             socketFactory = SocketFactory.getDefault();
         }

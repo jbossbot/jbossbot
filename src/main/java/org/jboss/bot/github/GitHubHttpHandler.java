@@ -24,18 +24,21 @@ package org.jboss.bot.github;
 
 import com.zwitserloot.json.JSON;
 import java.io.IOException;
-import java.net.URI;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import org.jboss.bot.AbstractJSONServlet;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
-import org.jboss.bot.http.JSONHttpHandler;
 
-import com.sun.net.httpserver.Headers;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class GitHubHttpHandler extends JSONHttpHandler {
+public final class GitHubHttpHandler extends AbstractJSONServlet {
     private final JBossBot bot;
     private final GitHubMessageHandler messageHandler;
 
@@ -44,12 +47,23 @@ public final class GitHubHttpHandler extends JSONHttpHandler {
         this.messageHandler = messageHandler;
     }
 
-    public void handle(final Headers requestHeaders, final Headers queryParams, final URI uri, final JSON json) throws IOException {
+    protected void doPost(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
+        final String userAgent = req.getHeader("User-agent");
+        if (userAgent != null && userAgent.toLowerCase(Locale.US).contains("github")) {
+            super.doPost(req, resp);
+        }
+    }
+
+    protected void handleRequest(final HttpServletRequest req, final HttpServletResponse resp, final Map<String, String> queryParams, final JSON json) throws IOException {
         boolean simpleSingle = true;
         int limit = 7;
-        final String path = uri.getPath();
+        final String path = req.getContextPath();
         if (path == null) {
             System.err.println("Request with no path");
+            return;
+        }
+        if (! path.startsWith("/jbossbot/")) {
+            System.err.println("Request with wrong path");
             return;
         }
         String channel = path.substring(10);
@@ -59,11 +73,11 @@ public final class GitHubHttpHandler extends JSONHttpHandler {
 
         final IrcStringBuilder b = new IrcStringBuilder();
 
-        final String limitStr = queryParams.getFirst("limit");
+        final String limitStr = queryParams.get("limit");
         if (limitStr != null && ! limitStr.isEmpty()) {
             limit = Integer.parseInt(limitStr);
         }
-        final String event = requestHeaders.getFirst("X-github-event");
+        final String event = req.getHeader("X-github-event");
         if ("push".equals(event)) {
             final String reposName = json.get("repository").get("name").asString();
             final String ref = json.get("ref").asString();

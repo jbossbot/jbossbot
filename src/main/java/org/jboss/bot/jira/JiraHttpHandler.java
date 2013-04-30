@@ -24,16 +24,18 @@ package org.jboss.bot.jira;
 
 import com.zwitserloot.json.JSON;
 import java.io.IOException;
-import java.net.URI;
+import java.util.Map;
+import org.jboss.bot.AbstractJSONServlet;
 import org.jboss.bot.JBossBot;
-import org.jboss.bot.http.JSONHttpHandler;
 
-import com.sun.net.httpserver.Headers;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class JiraHttpHandler extends JSONHttpHandler {
+public final class JiraHttpHandler extends AbstractJSONServlet {
     private final JBossBot bot;
     private final JiraMessageHandler messageHandler;
 
@@ -42,9 +44,15 @@ public final class JiraHttpHandler extends JSONHttpHandler {
         this.messageHandler = messageHandler;
     }
 
-    public void handle(final Headers requestHeaders, final Headers queryParams, final URI uri, final JSON json) throws IOException {
+    protected void doPost(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
+        if ("Atlassian-Webhooks-Plugin".equals(req.getHeader("User-agent"))) {
+            super.doPost(req, resp);
+        }
+    }
+
+    protected void handleRequest(final HttpServletRequest req, final HttpServletResponse resp, final Map<String, String> queryParams, final JSON payload) throws IOException {
         try {
-            messageHandler.createdNote(bot, json.get("issue").get("key").asString());
+            messageHandler.createdNote(bot, payload.get("issue").get("key").asString());
         } catch (Exception e) {
             e.printStackTrace();
         }

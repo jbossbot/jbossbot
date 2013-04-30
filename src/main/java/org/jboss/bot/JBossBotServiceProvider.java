@@ -28,5 +28,5 @@ import com.sun.net.httpserver.HttpServer;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 public interface JBossBotServiceProvider {
-    void register(JBossBot bot, HttpServer httpServer);
+    void register(JBossBot bot, JBossBotServlet servlet);
 }

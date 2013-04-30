@@ -24,6 +24,7 @@ package org.jboss.bot.github;
 
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotServiceProvider;
+import org.jboss.bot.JBossBotServlet;
 import org.mangosdk.spi.ProviderFor;
 
 import com.sun.net.httpserver.HttpServer;
@@ -34,9 +35,9 @@ import com.sun.net.httpserver.HttpServer;
 @ProviderFor(JBossBotServiceProvider.class)
 public final class GitHubProvider implements JBossBotServiceProvider {
 
-    public void register(final JBossBot bot, final HttpServer httpServer) {
+    public void register(final JBossBot bot, final JBossBotServlet servlet) {
         final GitHubMessageHandler messageHandler = new GitHubMessageHandler();
         bot.getListenerManager().addListener(messageHandler);
-        httpServer.createContext("/jbossbot", new GitHubHttpHandler(bot, messageHandler));
+        servlet.register(new GitHubHttpHandler(bot, messageHandler));
     }
 }
