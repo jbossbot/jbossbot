@@ -58,16 +58,18 @@ public final class Lifecycle extends ListenerAdapter<JBossBot> {
                 tryIdentify(event, preferences);
             } else if (sourceNick.equals("NickServ") && notice.contains("You are now identified for")) {
                 identified.set(true);
-                final Preferences channelsNode = preferences.node("channels");
-                final String[] channels = channelsNode.childrenNames();
-                for (String channel : channels) {
-                    final Preferences channelNode = channelsNode.node(channel);
-                    if (channelNode.getBoolean("join", true)) {
-                        final String keyword = channelNode.get("keyword", null);
-                        if (keyword != null) {
-                            event.getBot().joinChannel(channel, keyword);
-                        } else {
-                            event.getBot().joinChannel(channel);
+                if (preferences.getBoolean("join", true)) {
+                    final Preferences channelsNode = preferences.node("channels");
+                    final String[] channels = channelsNode.childrenNames();
+                    for (String channel : channels) {
+                        final Preferences channelNode = channelsNode.node(channel);
+                        if (channelNode.getBoolean("join", true)) {
+                            final String keyword = channelNode.get("keyword", null);
+                            if (keyword != null) {
+                                event.getBot().joinChannel(channel, keyword);
+                            } else {
+                                event.getBot().joinChannel(channel);
+                            }
                         }
                     }
                 }

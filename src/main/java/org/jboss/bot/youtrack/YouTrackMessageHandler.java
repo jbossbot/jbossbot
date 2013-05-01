@@ -181,7 +181,7 @@ public final class YouTrackMessageHandler extends ListenerAdapter<JBossBot> {
         String url;
         for (String key : keys) {
             project = projectFor(key);
-            if (ignored.contains(key)) {
+            if (ignored.contains(project)) {
                 continue;
             }
             if (projectsNode.nodeExists(project)) {
@@ -205,16 +205,16 @@ public final class YouTrackMessageHandler extends ListenerAdapter<JBossBot> {
         final String key = issueInfo.key;
         final IrcStringBuilder builder = new IrcStringBuilder();
         if (issueInfo.redirect != null) {
-            builder.append((char) 2).append(prefix).append((char) 2).append((char) 15).append(' ');
-            builder.append('[').append((char) 3).append('3').append(key).append((char) 15).append("] ");
-            builder.append((char) 3).append('7').append("Redirected to: ").append((char) 3).append("10").append(issueInfo.redirect).append((char) 15);
+            builder.b().append(prefix).b().nc().append(' ');
+            builder.append('[').fc(3).append(key).nc().append("] ");
+            builder.fc(7).append("Redirected to: ").fc(10).append(issueInfo.redirect).nc();
         } else {
-            builder.append((char) 2).append(prefix).append((char) 2).append((char) 15).append(' ');
-            builder.append('[').append((char) 3).append('3').append(key).append((char) 15).append("] ");
+            builder.b().append(prefix).b().nc().append(' ');
+            builder.append('[').fc(3).append(key).nc().append("] ");
             builder.append(issueInfo.summary);
-            builder.append(" [").append((char)3).append("10").append(issueInfo.status).append((char) 15).append(',');
-            builder.append((char)3).append('7').append(' ').append(issueInfo.priority).append((char) 15).append(',');
-            builder.append((char) 3).append('6').append(' ').append(issueInfo.assignee).append((char) 15).append("] ");
+            builder.append(" [").fc(10).append(issueInfo.status).nc().append(',');
+            builder.fc(7).append(' ').append(issueInfo.priority).nc().append(',');
+            builder.fc(6).append(' ').append(issueInfo.assignee).nc().append("] ");
             builder.append(issueInfo.link);
         }
         event.respond(builder.toString());

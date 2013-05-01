@@ -275,7 +275,10 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
         }
         url = projectNode.get("url", null);
         if (url == null) {
-            return;
+            url = jiraNode.node("default").get("url", null);
+            if (url == null) {
+                return;
+            }
         }
         if (! url.endsWith("/")) {
             url += "/";
