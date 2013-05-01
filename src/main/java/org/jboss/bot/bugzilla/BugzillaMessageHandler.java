@@ -37,6 +37,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
+import org.jboss.bot.JBossBotUtils;
 import org.jboss.logging.Logger;
 import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.ActionEvent;
@@ -175,7 +176,7 @@ public final class BugzillaMessageHandler extends ListenerAdapter<JBossBot> {
     private CacheEntry lookup(final String key, final String id, final long timestamp) {
         try {
             final URL url = new URL(key + "&ctype=xml");
-            final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            final HttpURLConnection conn = (HttpURLConnection) JBossBotUtils.connectTo(url);
             try {
                 final int code = conn.getResponseCode();
                 if (code != 200) {

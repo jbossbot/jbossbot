@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.bot.JBossBot;
+import org.jboss.bot.JBossBotUtils;
 import org.jboss.logging.Logger;
 import org.pircbotx.hooks.ListenerAdapter;
 
@@ -171,7 +172,7 @@ public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
         }
         try {
             final URL url = new URL(urlString);
-            final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            final HttpURLConnection conn = (HttpURLConnection) JBossBotUtils.connectTo(url);
             try {
                 final int code = conn.getResponseCode();
                 if (code != 200) {

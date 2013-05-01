@@ -24,12 +24,15 @@ package org.jboss.bot;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 
+import javax.net.SocketFactory;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
@@ -43,7 +46,8 @@ import javax.net.ssl.X509TrustManager;
  */
 public final class JBossBotUtils {
 
-    private static final SSLSocketFactory SOCKET_FACTORY;
+    private static final SSLSocketFactory SSL_SOCKET_FACTORY;
+    private static final SocketFactory SOCKET_FACTORY;
 
     static {
         try {
@@ -59,13 +63,14 @@ public final class JBossBotUtils {
                 public void checkServerTrusted(X509Certificate[] certs, String authType) {
                 }
             }}, new java.security.SecureRandom());
-            final SSLSocketFactory socketFactory = sc.getSocketFactory();
-            SOCKET_FACTORY = socketFactory;
+            final SSLSocketFactory socketFactory = new OpenShiftSSLSocketFactory(sc.getSocketFactory());
+            SSL_SOCKET_FACTORY = socketFactory;
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         } catch (KeyManagementException e) {
             throw new RuntimeException(e);
         }
+        SOCKET_FACTORY = new OpenShiftSocketFactory(SocketFactory.getDefault());
     }
 
     private static final HostnameVerifier HOSTNAME_VERIFIER = new HostnameVerifier() {
@@ -86,13 +91,97 @@ public final class JBossBotUtils {
             if (connection instanceof HttpsURLConnection) {
                 final HttpsURLConnection httpsURLConnection = (HttpsURLConnection) connection;
                 httpsURLConnection.setHostnameVerifier(HOSTNAME_VERIFIER);
-                httpsURLConnection.setSSLSocketFactory(SOCKET_FACTORY);
+                httpsURLConnection.setSSLSocketFactory(SSL_SOCKET_FACTORY);
             }
         }
         return connection;
     }
 
     public static SSLSocketFactory getSSLSocketFactory() {
+        return SSL_SOCKET_FACTORY;
+    }
+
+    public static SocketFactory getSocketFactory() {
         return SOCKET_FACTORY;
+    }
+
+    static final class OpenShiftSocketFactory extends SocketFactory {
+        private final SocketFactory original;
+
+        OpenShiftSocketFactory(final SocketFactory original) {
+            this.original = original;
+        }
+
+        public Socket createSocket(final String host, final int port) throws IOException {
+            return original.createSocket(host, port);
+        }
+
+        public Socket createSocket(final String host, final int port, final InetAddress localHost, final int localPort) throws IOException {
+            if (localPort == 0) {
+                return original.createSocket(host, port);
+            } else {
+                return original.createSocket(host, port, localHost, localPort);
+            }
+        }
+
+        public Socket createSocket(final InetAddress host, final int port) throws IOException {
+            return original.createSocket(host, port);
+        }
+
+        public Socket createSocket(final InetAddress host, final int port, final InetAddress localHost, final int localPort) throws IOException {
+            if (localPort == 0) {
+                return original.createSocket(host, port);
+            } else {
+                return original.createSocket(host, port, localHost, localPort);
+            }
+        }
+    }
+
+    static final class OpenShiftSSLSocketFactory extends SSLSocketFactory {
+        private final SSLSocketFactory original;
+
+        OpenShiftSSLSocketFactory(final SSLSocketFactory original) {
+            this.original = original;
+        }
+
+        public static SocketFactory getDefault() {
+            return SSLSocketFactory.getDefault();
+        }
+
+        public String[] getDefaultCipherSuites() {
+            return original.getDefaultCipherSuites();
+        }
+
+        public String[] getSupportedCipherSuites() {
+            return original.getSupportedCipherSuites();
+        }
+
+        public Socket createSocket(final String host, final int port) throws IOException {
+            return original.createSocket(host, port);
+        }
+
+        public Socket createSocket(final String host, final int port, final InetAddress localHost, final int localPort) throws IOException {
+            if (localPort == 0) {
+                return original.createSocket(host, port);
+            } else {
+                return original.createSocket(host, port, localHost, localPort);
+            }
+        }
+
+        public Socket createSocket(final InetAddress host, final int port) throws IOException {
+            return original.createSocket(host, port);
+        }
+
+        public Socket createSocket(final InetAddress host, final int port, final InetAddress localHost, final int localPort) throws IOException {
+            if (localPort == 0) {
+                return original.createSocket(host, port);
+            } else {
+                return original.createSocket(host, port, localHost, localPort);
+            }
+        }
+
+        public Socket createSocket(final Socket s, final String host, final int port, final boolean autoClose) throws IOException {
+            return original.createSocket(s, host, port, autoClose);
+        }
     }
 }

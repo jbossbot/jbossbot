@@ -43,6 +43,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
+import org.jboss.bot.JBossBotUtils;
 import org.jboss.logging.Logger;
 import org.pircbotx.Channel;
 import org.pircbotx.User;
@@ -308,7 +309,7 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
     private IssueInfo lookup(final String urlString, final String key) {
         try {
             final URL url = new URL(urlString + "si/jira.issueviews:issue-xml/" + key + "/" + key + ".xml");
-            final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            final HttpURLConnection conn = (HttpURLConnection) JBossBotUtils.connectTo(url);
             try {
                 final int code = conn.getResponseCode();
                 if (code != 200) {

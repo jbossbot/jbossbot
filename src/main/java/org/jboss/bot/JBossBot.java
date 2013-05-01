@@ -79,13 +79,13 @@ public final class JBossBot extends PircBotX {
     public void connect() throws IOException, IrcException {
         Preferences prefs = prefNode;
         final String serverName = prefs.get("server", "irc.freenode.net");
-        final boolean ssl = prefs.getBoolean("tls", false);
-        final int port = prefs.getInt("server-port", 6667);
+        final boolean ssl = prefs.getBoolean("tls", true);
+        final int port = prefs.getInt("server-port", 7070);
         final SocketFactory socketFactory;
         if (ssl) {
             socketFactory = JBossBotUtils.getSSLSocketFactory();
         } else {
-            socketFactory = SocketFactory.getDefault();
+            socketFactory = JBossBotUtils.getSocketFactory();
         }
         connect(serverName, port, socketFactory);
     }
