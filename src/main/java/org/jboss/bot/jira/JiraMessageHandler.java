@@ -179,7 +179,7 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
         String url;
         for (String key : keys) {
             project = projectFor(key);
-            if (ignored.contains(key)) {
+            if (ignored.contains(project)) {
                 continue;
             }
             if (projectsNode.nodeExists(project)) {
