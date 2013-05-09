@@ -37,6 +37,7 @@ import org.pircbotx.User;
 import org.pircbotx.exception.IrcException;
 import org.pircbotx.hooks.Event;
 import org.pircbotx.hooks.events.ActionEvent;
+import org.pircbotx.hooks.events.DisconnectEvent;
 import org.pircbotx.hooks.events.MessageEvent;
 import org.pircbotx.hooks.events.PrivateMessageEvent;
 
@@ -107,6 +108,14 @@ public final class JBossBot extends PircBotX {
             }
         }
         return 1L;
+    }
+
+    public void shutdown(final boolean noReconnect) {
+        try {
+            super.shutdown(noReconnect);
+        } finally {
+            dispatchEvent(new DisconnectEvent<JBossBot>(this));
+        }
     }
 
     protected void handleLine(final String s) throws IOException {

@@ -61,13 +61,13 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
     protected void handleRequest(final HttpServletRequest req, final HttpServletResponse resp, final Map<String, String> queryParams, final JSON json) throws IOException {
         boolean simpleSingle = true;
         int limit = 7;
-        final String path = req.getContextPath();
+        final String path = req.getPathInfo();
         if (path == null) {
-            log.debug("Request with no path");
+            log.warn("Request with no path");
             return;
         }
         if (! path.startsWith("/jbossbot/")) {
-            log.debug("Request with wrong path");
+            log.warnf("Request with wrong path '%s'", path);
             return;
         }
         String channel = path.substring(10);

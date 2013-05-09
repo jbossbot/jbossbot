@@ -191,7 +191,10 @@ public final class YouTrackMessageHandler extends ListenerAdapter<JBossBot> {
             }
             url = projectNode.get("url", null);
             if (url == null) {
-                continue;
+                url = youtrackNode.node("default").get("url", null);
+                if (url == null) {
+                    continue;
+                }
             }
             if (! url.endsWith("/")) {
                 url += "/";
