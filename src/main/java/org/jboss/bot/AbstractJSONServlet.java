@@ -49,7 +49,7 @@ public abstract class AbstractJSONServlet extends HttpServlet {
     protected void doPost(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
         final Enumeration<String> requestHeaders = req.getHeaderNames();
 
-        log.debugf("Request: %s", req.getRequestURI());
+        log.infof("Request: %s", req.getRequestURI());
 
         while (requestHeaders.hasMoreElements()) {
             String key = requestHeaders.nextElement();
@@ -57,7 +57,7 @@ public abstract class AbstractJSONServlet extends HttpServlet {
             if (list != null) {
                 while (list.hasMoreElements()) {
                     String value = list.nextElement();
-                    log.debugf("Header: %s = %s", key, value);
+                    log.infof("Header: %s = %s", key, value);
                 }
             }
         }
@@ -94,7 +94,7 @@ public abstract class AbstractJSONServlet extends HttpServlet {
             }
             safeClose(requestBody);
             resp.setContentLength(0);
-            resp.setStatus(100);
+            resp.setStatus(200);
             resp.flushBuffer();
             safeClose(resp.getOutputStream());
             String s = b.toString();
