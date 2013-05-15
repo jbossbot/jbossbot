@@ -105,7 +105,7 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
                 } else {
                     b.append(msg);
                 }
-                bot.sendMessage(channel, b.toString());
+                bot.sendMessage(bot.getChannel(channel), b.toString());
             }
             if (commitsList.size() > commits.size()) {
                 final int diff = commitsList.size() - commits.size();
@@ -118,7 +118,7 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
                     b.append('s');
                 }
                 b.append(" not shown)");
-                bot.sendMessage(channel, b.toString());
+                bot.sendMessage(bot.getChannel(channel), b.toString());
             }
             final String before = json.get("before").asString();
             final String after = json.get("after").asString();
@@ -138,7 +138,7 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
             messageHandler.enter();
             try {
                 messageHandler.add(owner, reposName, after.substring(0, 9));
-                bot.sendMessage(channel, b.toString());
+                bot.sendMessage(bot.getChannel(channel), b.toString());
             } finally {
                 messageHandler.exit();
             }
@@ -162,7 +162,7 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
                 messageHandler.enter();
                 try {
                     messageHandler.addPR(owner, reposName, pullRequest.get("number").asString());
-                    bot.sendMessage(channel, b.toString());
+                    bot.sendMessage(bot.getChannel(channel), b.toString());
                 } finally {
                     messageHandler.exit();
                 }

@@ -132,6 +132,11 @@ public final class JBossBot extends PircBotX {
         getListenerManager().dispatchEvent((Event)event);
     }
 
+    public void sendMessage(final Channel target, final String message) {
+        super.sendMessage(target, message);
+        dispatchEvent(new MessageEvent<JBossBot>(this, target, getUserBot(), message));
+    }
+
     public void sendMessage(final Channel chan, final User user, final String message) {
         super.sendMessage(chan, user, message);
         dispatchEvent(new MessageEvent<JBossBot>(this, chan, getUserBot(), message));
