@@ -144,10 +144,6 @@ public final class JBossBotUtils {
             this.original = original;
         }
 
-        public static SocketFactory getDefault() {
-            return SSLSocketFactory.getDefault();
-        }
-
         public String[] getDefaultCipherSuites() {
             return original.getDefaultCipherSuites();
         }

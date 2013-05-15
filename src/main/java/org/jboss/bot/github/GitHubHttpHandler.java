@@ -55,6 +55,8 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
         final String userAgent = req.getHeader("User-agent");
         if (userAgent != null && userAgent.toLowerCase(Locale.US).contains("github")) {
             super.doPost(req, resp);
+        } else {
+            System.out.println("Skipping request with no matching User-agent");
         }
     }
 
@@ -63,11 +65,11 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
         int limit = 7;
         final String path = req.getPathInfo();
         if (path == null) {
-            log.warn("Request with no path");
+            System.out.println("Request with no path");
             return;
         }
         if (! path.startsWith("/jbossbot/")) {
-            log.warnf("Request with wrong path '%s'", path);
+            System.out.printf("Request with wrong path '%s'", path);
             return;
         }
         String channel = path.substring(10);

@@ -26,8 +26,8 @@ import java.io.IOException;
 import java.util.ServiceLoader;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.jboss.logging.Logger;
-import org.pircbotx.exception.IrcException;
 
+import javax.ejb.EJB;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -43,32 +43,19 @@ public final class JBossBotServlet extends HttpServlet {
     private static final Logger log = Logger.getLogger("org.jboss.bot");
 
     private final CopyOnWriteArrayList<HttpServlet> subServlets = new CopyOnWriteArrayList<HttpServlet>();
-    private volatile JBossBot bot;
+
+    @EJB
+    private JBossBotEJB ejb;
 
     public void init() throws ServletException {
-        final JBossBot bot = new JBossBot();
-
         for (JBossBotServiceProvider provider : ServiceLoader.load(JBossBotServiceProvider.class, JBossBotServlet.class.getClassLoader())) {
             log.debugf("Registering %s", provider);
-            provider.register(bot, this);
+            provider.register(ejb.getBot(), this);
         }
-
-        try {
-            bot.connect();
-        } catch (IOException e) {
-            throw new ServletException(e);
-        } catch (IrcException e) {
-            throw new ServletException(e);
-        }
-        this.bot = bot;
     }
 
     public void destroy() {
         subServlets.clear();
-        final JBossBot bot = this.bot;
-        if (bot != null) {
-            bot.shutdown(true);
-        }
     }
 
     protected void service(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
@@ -86,6 +73,6 @@ public final class JBossBotServlet extends HttpServlet {
     }
 
     public JBossBot getBot() {
-        return bot;
+        return ejb.getBot();
     }
 }
