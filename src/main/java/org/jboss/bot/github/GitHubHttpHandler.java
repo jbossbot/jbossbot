@@ -102,8 +102,9 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
                 String msg = commit.get("message").asString();
                 if (msg.indexOf('\n') != -1) {
                     b.append(msg.substring(0, msg.indexOf('\n'))).fc(14).append("...").nc();
+                } else {
+                    b.append(msg);
                 }
-                b.append(msg);
                 bot.sendMessage(channel, b.toString());
             }
             if (commitsList.size() > commits.size()) {
