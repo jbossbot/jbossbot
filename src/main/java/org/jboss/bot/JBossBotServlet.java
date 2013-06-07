@@ -48,9 +48,15 @@ public final class JBossBotServlet extends HttpServlet {
     private JBossBotEJB ejb;
 
     public void init() throws ServletException {
+        final JBossBot bot = ejb.getBot();
         for (JBossBotServiceProvider provider : ServiceLoader.load(JBossBotServiceProvider.class, JBossBotServlet.class.getClassLoader())) {
             log.debugf("Registering %s", provider);
-            provider.register(ejb.getBot(), this);
+            provider.register(bot, this);
+        }
+        try {
+            bot.getThimBot().connect();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

@@ -24,7 +24,8 @@ package org.jboss.bot;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.pircbotx.User;
+
+import com.flurg.thimbot.source.User;
 
 public final class Mask {
     private static final Pattern ALL = Pattern.compile(".*");
@@ -80,6 +81,6 @@ public final class Mask {
     }
 
     public boolean matches(final User user) {
-        return matches(user.getNick(), user.getLogin(), user.getHostmask());
+        return matches(user.getName(), user.getLogin(), user.getHost());
     }
 }

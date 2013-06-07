@@ -23,61 +23,26 @@
 package org.jboss.bot;
 
 import java.io.Closeable;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.prefs.Preferences;
-import java.util.regex.Pattern;
+
+import com.flurg.thimbot.ThimBot;
 import org.jboss.logging.Logger;
-import org.pircbotx.Channel;
-import org.pircbotx.OutputThread;
-import org.pircbotx.PircBotX;
-import org.pircbotx.User;
-import org.pircbotx.exception.IrcException;
-import org.pircbotx.hooks.Event;
-import org.pircbotx.hooks.events.ActionEvent;
-import org.pircbotx.hooks.events.DisconnectEvent;
-import org.pircbotx.hooks.events.MessageEvent;
-import org.pircbotx.hooks.events.PrivateMessageEvent;
 
 import javax.net.SocketFactory;
 
 @SuppressWarnings("unchecked")
-public final class JBossBot extends PircBotX {
+public final class JBossBot {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot");
 
-    private static final Pattern PONG_PATTERN = Pattern.compile("PONG [^ ]+ :sync\\d+$");
-
     private final Preferences prefNode = Preferences.userRoot().node("jbossbot");
+    private final ThimBot bot;
 
     public JBossBot() {
         log.debug("Configuring...");
-        Preferences prefs = prefNode;
-        try {
-            setEncoding(prefs.get("encoding", "UTF-8"));
-        } catch (UnsupportedEncodingException e) {
-            // unlikely; just ignore it in any case
-        }
-        setVerbose(true);
-        setAutoNickChange(true);
-        setAutoReconnect(false);
-        setAutoReconnectChannels(false);
-        setListenerManager(new JBossBotListenerManager<PircBotX>());
-        setLogin(prefs.get("login", "jbossbot"));
-        setName(prefs.get("nick", "jbossbot"));
-        setFinger(prefs.get("realname", "JBossBot"));
-        setVersion(prefs.get("version", "JBoss Bot, accept no substitute!"));
-    }
-
-    private int sem = 5;
-
-    public Preferences getPrefNode() {
-        return prefNode;
-    }
-
-    public void connect() throws IOException, IrcException {
         Preferences prefs = prefNode;
         final String serverName = prefs.get("server", "irc.freenode.net");
         final boolean ssl = prefs.getBoolean("tls", true);
@@ -88,68 +53,16 @@ public final class JBossBot extends PircBotX {
         } else {
             socketFactory = JBossBotUtils.getSocketFactory();
         }
-        connect(serverName, port, socketFactory);
+        final ThimBot bot = new ThimBot(prefNode, new InetSocketAddress(serverName, port), socketFactory);
+        bot.setLogin(prefs.get("login", "jbossbot"));
+        bot.setInitialNick(prefs.get("nick", "jbossbot"));
+        bot.setRealName(prefs.get("realname", "JBossBot"));
+        bot.setVersion(prefs.get("version", "JBoss Bot, accept no substitute!"));
+        this.bot = bot;
     }
 
-    public long getMessageDelay() {
-        if (Thread.currentThread() instanceof OutputThread) {
-            synchronized (this) {
-                int v = --sem;
-                if (v == 0) {
-                    sendRawLineNow("PING sync" + (System.nanoTime() & 0x0fffffff));
-                    do {
-                        try {
-                            wait();
-                            v = sem;
-                        } catch (InterruptedException e) {
-                        }
-                    } while (v == 0);
-                }
-            }
-        }
-        return 1L;
-    }
-
-    public void shutdown(final boolean noReconnect) {
-        try {
-            super.shutdown(noReconnect);
-        } finally {
-            dispatchEvent(new DisconnectEvent<JBossBot>(this));
-        }
-    }
-
-    protected void handleLine(final String s) throws IOException {
-        if (PONG_PATTERN.matcher(s).find()) {
-            synchronized (this) {
-                sem += prefNode.getInt("window", 5);
-                notifyAll();
-            }
-        }
-        super.handleLine(s);
-    }
-
-    public void dispatchEvent(final Event<?> event) {
-        getListenerManager().dispatchEvent((Event)event);
-    }
-
-    public void sendMessage(final Channel target, final String message) {
-        super.sendMessage(target, message);
-        dispatchEvent(new MessageEvent<JBossBot>(this, target, getUserBot(), message));
-    }
-
-    public void sendMessage(final Channel chan, final User user, final String message) {
-        super.sendMessage(chan, user, message);
-        dispatchEvent(new MessageEvent<JBossBot>(this, chan, getUserBot(), message));
-    }
-
-    public void sendMessage(final User target, final String message) {
-        super.sendMessage(target, message);
-        dispatchEvent(new PrivateMessageEvent<JBossBot>(this, target, message));
-    }
-
-    public void sendAction(final Channel target, final String action) {
-        super.sendAction(target, action);
-        dispatchEvent(new ActionEvent<JBossBot>(this, getUserBot(), target, action));
+    public Preferences getPrefNode() {
+        return prefNode;
     }
 
     static void safeClose(Closeable c) {
@@ -168,5 +81,9 @@ public final class JBossBot extends PircBotX {
         try {
             c.close();
         } catch (Throwable ignored) {}
+    }
+
+    public ThimBot getThimBot() {
+        return bot;
     }
 }

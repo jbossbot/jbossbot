@@ -25,34 +25,31 @@ package org.jboss.bot.lifecycle;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
-import org.jboss.bot.JBossBot;
+
+import com.flurg.thimbot.event.DisconnectEvent;
+import com.flurg.thimbot.event.Event;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
+import com.flurg.thimbot.event.MOTDEndEvent;
+import com.flurg.thimbot.event.NoticeEvent;
+import com.flurg.thimbot.source.Channel;
+import com.flurg.thimbot.source.Nick;
 import org.jboss.logging.Logger;
-import org.pircbotx.exception.IrcException;
-import org.pircbotx.hooks.Event;
-import org.pircbotx.hooks.ListenerAdapter;
-import org.pircbotx.hooks.events.ConnectEvent;
-import org.pircbotx.hooks.events.DisconnectEvent;
-import org.pircbotx.hooks.events.MotdEvent;
-import org.pircbotx.hooks.events.NoticeEvent;
 
 /**
  * Authenticates with services and joins all channels on connect, and handles reconnect.
  *
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class Lifecycle extends ListenerAdapter<JBossBot> {
+public final class Lifecycle extends EventHandler {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot.lifecycle");
     private final AtomicBoolean identified = new AtomicBoolean();
 
-    public void onConnect(final ConnectEvent<JBossBot> event) throws Exception {
-        identified.set(false);
-    }
-
-    public void onNotice(final NoticeEvent<JBossBot> event) throws Exception {
+    public void handleEvent(final EventHandlerContext context, final NoticeEvent event) throws Exception {
         if (! identified.get()) {
-            final Preferences preferences = event.getBot().getPrefNode();
-            final String sourceNick = event.getUser().getNick();
+            final Preferences preferences = event.getBot().getPreferences();
+            final String sourceNick = event.getSource().getName();
             final String notice = event.getMessage();
             if (sourceNick.equals("NickServ") && notice.contains("This nickname is registered.")) {
                 tryIdentify(event, preferences);
@@ -64,56 +61,38 @@ public final class Lifecycle extends ListenerAdapter<JBossBot> {
                     for (String channel : channels) {
                         final Preferences channelNode = channelsNode.node(channel);
                         if (channelNode.getBoolean("join", true)) {
-                            final String keyword = channelNode.get("keyword", null);
-                            if (keyword != null) {
-                                event.getBot().joinChannel(channel, keyword);
-                            } else {
-                                event.getBot().joinChannel(channel);
-                            }
+//                            final String keyword = channelNode.get("keyword", null);
+//                            if (keyword != null) {
+//                                event.getBot().join(channel, keyword);
+//                            } else {
+//                            }
+                            event.getBot().join(new Channel(channel));
                         }
                     }
                 }
             }
         }
-        super.onNotice(event);
+        super.handleEvent(context, event);
     }
 
-    private void tryIdentify(final Event<JBossBot> event, final Preferences preferences) {
+    private void tryIdentify(final Event event, final Preferences preferences) throws IOException {
         if (! identified.get()) {
             final String password = preferences.node("nickserv").get("password", null);
             if (password != null) {
-                event.getBot().sendMessage("NickServ", "identify " + preferences.get("nick", "jbossbot") + " " + password);
+                event.getBot().sendMessage(new Nick("NickServ"), "identify " + preferences.get("nick", "jbossbot") + " " + password);
             } else {
                log.warn("No nickserv password configured");
             }
         }
     }
 
-    public void onMotd(final MotdEvent<JBossBot> event) throws Exception {
-        tryIdentify(event, event.getBot().getPrefNode());
-        super.onMotd(event);
+    public void handleEvent(final EventHandlerContext context, final MOTDEndEvent event) throws Exception {
+        tryIdentify(event, event.getBot().getPreferences());
+        super.handleEvent(context, event);
     }
 
-    public void onDisconnect(final DisconnectEvent<JBossBot> event) throws Exception {
+    public void handleEvent(final EventHandlerContext context, final DisconnectEvent event) throws Exception {
         identified.set(false);
-        for (;;) {
-            try {
-                Thread.sleep(10000L);
-            } catch (InterruptedException e) {
-                // xx
-            }
-            try {
-                try {
-                    event.getBot().disconnect();
-                } catch (Throwable ignored) {}
-                event.getBot().connect();
-                return;
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (IrcException e) {
-                e.printStackTrace();
-            }
-        }
-
+        event.getBot().connect();
     }
 }

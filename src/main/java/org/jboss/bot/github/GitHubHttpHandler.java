@@ -22,6 +22,7 @@
 
 package org.jboss.bot.github;
 
+import com.flurg.thimbot.source.Channel;
 import com.zwitserloot.json.JSON;
 import java.io.IOException;
 import java.util.List;
@@ -105,7 +106,7 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
                 } else {
                     b.append(msg);
                 }
-                bot.sendMessage(bot.getChannel(channel), b.toString());
+                bot.getThimBot().sendMessage(new Channel(channel), b.toString());
             }
             if (commitsList.size() > commits.size()) {
                 final int diff = commitsList.size() - commits.size();
@@ -118,7 +119,7 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
                     b.append('s');
                 }
                 b.append(" not shown)");
-                bot.sendMessage(bot.getChannel(channel), b.toString());
+                bot.getThimBot().sendMessage(new Channel(channel), b.toString());
             }
             final String before = json.get("before").asString();
             final String after = json.get("after").asString();
@@ -138,7 +139,7 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
             messageHandler.enter();
             try {
                 messageHandler.add(owner, reposName, after.substring(0, 9));
-                bot.sendMessage(bot.getChannel(channel), b.toString());
+                bot.getThimBot().sendMessage(new Channel(channel), b.toString());
             } finally {
                 messageHandler.exit();
             }
@@ -162,7 +163,7 @@ public final class GitHubHttpHandler extends AbstractJSONServlet {
                 messageHandler.enter();
                 try {
                     messageHandler.addPR(owner, reposName, pullRequest.get("number").asString());
-                    bot.sendMessage(bot.getChannel(channel), b.toString());
+                    bot.getThimBot().sendMessage(new Channel(channel), b.toString());
                 } finally {
                     messageHandler.exit();
                 }

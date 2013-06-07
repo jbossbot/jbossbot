@@ -35,15 +35,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.flurg.thimbot.event.AbstractMessageEvent;
+import com.flurg.thimbot.event.ActionEvent;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
+import com.flurg.thimbot.event.MessageEvent;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotUtils;
 import org.jboss.logging.Logger;
-import org.pircbotx.hooks.ListenerAdapter;
-import org.pircbotx.hooks.events.ActionEvent;
-import org.pircbotx.hooks.events.MessageEvent;
-import org.pircbotx.hooks.events.PrivateMessageEvent;
-import org.pircbotx.hooks.types.GenericMessageEvent;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
@@ -51,7 +52,7 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
-public final class BugzillaMessageHandler extends ListenerAdapter<JBossBot> {
+public final class BugzillaMessageHandler extends EventHandler {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot.bugzilla");
 
@@ -102,19 +103,17 @@ public final class BugzillaMessageHandler extends ListenerAdapter<JBossBot> {
 
     private static final Pattern BZ_URL = Pattern.compile("(?:(?:(https?://[.a-zA-Z_-]+(?::\\d+)?)/(?:[^?/]*/)*show_bug\\.cgi\\?id=)|(?:[Bb][Zz]\\s*#))(\\d+)");
 
-    public void onAction(final ActionEvent<JBossBot> event) throws Exception {
+    public void handleEvent(final EventHandlerContext context, final MessageEvent event) throws Exception {
         doHandle(event);
+        super.handleEvent(context, event);
     }
 
-    public void onMessage(final MessageEvent<JBossBot> event) throws Exception {
+    public void handleEvent(final EventHandlerContext context, final ActionEvent event) throws Exception {
         doHandle(event);
+        super.handleEvent(context, event);
     }
 
-    public void onPrivateMessage(final PrivateMessageEvent<JBossBot> event) throws Exception {
-        doHandle(event);
-    }
-
-    public boolean doHandle(final GenericMessageEvent<JBossBot> event) {
+    public boolean doHandle(final AbstractMessageEvent<?, ?> event) throws IOException {
         final RecursionState state = recursionState.get();
         state.enter();
         try {

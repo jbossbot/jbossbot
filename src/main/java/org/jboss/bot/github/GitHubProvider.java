@@ -27,8 +27,6 @@ import org.jboss.bot.JBossBotServiceProvider;
 import org.jboss.bot.JBossBotServlet;
 import org.mangosdk.spi.ProviderFor;
 
-import com.sun.net.httpserver.HttpServer;
-
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
@@ -37,7 +35,7 @@ public final class GitHubProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
         final GitHubMessageHandler messageHandler = new GitHubMessageHandler();
-        bot.getListenerManager().addListener(messageHandler);
+        bot.getThimBot().addEventHandler(messageHandler);
         servlet.register(new GitHubHttpHandler(bot, messageHandler));
     }
 }

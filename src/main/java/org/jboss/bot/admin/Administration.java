@@ -22,23 +22,26 @@
 
 package org.jboss.bot.admin;
 
+import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.flurg.thimbot.ThimBot;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
+import com.flurg.thimbot.event.MessageEvent;
+import com.flurg.thimbot.source.Channel;
+import com.flurg.thimbot.source.User;
 import org.jboss.bot.IrcStringBuilder;
-import org.jboss.bot.JBossBot;
 import org.jboss.bot.Mask;
-import org.pircbotx.User;
-import org.pircbotx.hooks.ListenerAdapter;
-import org.pircbotx.hooks.events.MessageEvent;
-import org.pircbotx.hooks.events.PrivateMessageEvent;
-import org.pircbotx.hooks.types.GenericMessageEvent;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class Administration extends ListenerAdapter<JBossBot> {
+public final class Administration extends EventHandler {
     private final CopyOnWriteArrayList<Mask> admins = new CopyOnWriteArrayList<Mask>();
 
     private static final Pattern LEAVE = Pattern.compile("^%leave$");
@@ -53,33 +56,29 @@ public final class Administration extends ListenerAdapter<JBossBot> {
         admins.add(mask);
     }
 
-    public void onMessage(final MessageEvent<JBossBot> event) throws Exception {
-        handleMessage(event);
-    }
-
-    public void onPrivateMessage(final PrivateMessageEvent<JBossBot> event) throws Exception {
-        handleMessage(event);
-    }
-
-    void handleMessage(final GenericMessageEvent<JBossBot> event) throws Exception {
-        final User user = event.getUser();
+    public void handleEvent(final EventHandlerContext context, final MessageEvent event) throws Exception {
+        final User user = event.getSource();
         for (Mask admin : admins) {
             if (admin.matches(user)) {
                 handleCheckedMessage(event, true);
+                super.handleEvent(context, event);
                 return;
             }
         }
         handleCheckedMessage(event, false);
+        super.handleEvent(context, event);
     }
 
-    void handleCheckedMessage(final GenericMessageEvent<JBossBot> event, final boolean authed) throws Exception {
+    void handleCheckedMessage(final MessageEvent event, final boolean authed) throws IOException, BackingStoreException {
         final String msg = event.getMessage();
         final String trimmed = msg.trim();
-        final JBossBot bot = event.getBot();
+        final ThimBot bot = event.getBot();
         if (LEAVE.matcher(trimmed).matches()) {
-            if (event instanceof MessageEvent) {
-                event.respond("Leaving by user request.");
-                bot.partChannel(((MessageEvent) event).getChannel(), "I was asked to leave.");
+            if (event.getTarget() instanceof Channel) {
+                bot.sendMessage(event.getTarget(), "Leaving by user request.");
+                bot.part((Channel) event.getTarget(), "I was asked to leave.");
+            } else {
+                // ignore
                 return;
             }
         }
@@ -88,7 +87,7 @@ public final class Administration extends ListenerAdapter<JBossBot> {
         if (joinMatcher.matches()) {
             String[] joins = joinMatcher.group(1).split(", *");
             for (String j : joins) {
-                bot.joinChannel(j);
+                bot.join(new Channel(j));
             }
             return;
         }
@@ -96,7 +95,7 @@ public final class Administration extends ListenerAdapter<JBossBot> {
         if (partMatcher.matches()) {
             String[] parts = partMatcher.group(1).split(", *");
             for (String p : parts) {
-                bot.partChannel(bot.getChannel(p), "I was told to leave.");
+                bot.part(new Channel(p), "I was told to leave.");
             }
             return;
         }
@@ -104,7 +103,7 @@ public final class Administration extends ListenerAdapter<JBossBot> {
         if (getMatcher.matches()) {
             final String path = getMatcher.group(1);
             final String key = getMatcher.group(2);
-            Preferences prefNode = bot.getPrefNode();
+            Preferences prefNode = bot.getPreferences();
             if (path != null && ! path.isEmpty()) {
                 prefNode = prefNode.node(path);
             }
@@ -120,7 +119,7 @@ public final class Administration extends ListenerAdapter<JBossBot> {
         if (removeMatcher.matches()) {
             final String path = removeMatcher.group(1);
             final String key = removeMatcher.group(2);
-            Preferences prefNode = bot.getPrefNode();
+            Preferences prefNode = bot.getPreferences();
             if (path != null && ! path.isEmpty()) {
                 prefNode = prefNode.node(path);
             }
@@ -134,7 +133,7 @@ public final class Administration extends ListenerAdapter<JBossBot> {
             final String path = setMatcher.group(1);
             final String key = setMatcher.group(2);
             final String value = setMatcher.group(3);
-            Preferences prefNode = bot.getPrefNode();
+            Preferences prefNode = bot.getPreferences();
             if (path != null && ! path.isEmpty()) {
                 prefNode = prefNode.node(path);
             }
@@ -144,7 +143,7 @@ public final class Administration extends ListenerAdapter<JBossBot> {
         }
         final Matcher reconnectMatcher = RECONNECT.matcher(trimmed);
         if (reconnectMatcher.matches()) {
-            event.getBot().quitServer("I was told to reconnect");
+            event.getBot().quit("I was told to reconnect");
             return;
         }
     }

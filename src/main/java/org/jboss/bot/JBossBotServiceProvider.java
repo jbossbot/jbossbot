@@ -22,8 +22,6 @@
 
 package org.jboss.bot;
 
-import com.sun.net.httpserver.HttpServer;
-
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */

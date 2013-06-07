@@ -22,29 +22,31 @@
 
 package org.jboss.bot.github;
 
+import com.flurg.thimbot.event.AbstractMessageEvent;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
+import com.flurg.thimbot.source.Target;
 import com.zwitserloot.json.JSON;
 import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.jboss.bot.JBossBot;
+
 import org.jboss.bot.JBossBotUtils;
 import org.jboss.logging.Logger;
-import org.pircbotx.hooks.ListenerAdapter;
-import org.pircbotx.hooks.events.ActionEvent;
-import org.pircbotx.hooks.events.MessageEvent;
-import org.pircbotx.hooks.events.PrivateMessageEvent;
-import org.pircbotx.hooks.types.GenericMessageEvent;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
+public final class GitHubMessageHandler extends EventHandler {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot.github");
 
@@ -63,7 +65,7 @@ public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
     private static final Pattern PULL_REQ_PATTERN1 = Pattern.compile("(?:([-A-Za-z0-9_]+)/)?([-A-Za-z0-9_]+)\\s+#(\\d+)");
     private static final Pattern PULL_REQ_PATTERN2 = Pattern.compile("https?://(?:www\\.)?github\\.com/+([^/]+)/+([^/]+)/+pull/+(\\d+)");
 
-    private boolean doHandle(final GenericMessageEvent<JBossBot> event) {
+    private boolean doHandle(final AbstractMessageEvent<?, ?> event) {
         final String msg = event.getMessage();
         final RecursionState state = recursionState.get();
         state.enter();
@@ -118,7 +120,7 @@ public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
         recursionState.get().add(String.format("https://api.github.com/repos/%s/%s/pulls/%s", org, repos, prId));
     }
 
-    private static void lookup(final GenericMessageEvent<JBossBot> event, final RecursionState state, final String org, final String repos, final String hash) {
+    private static void lookup(final AbstractMessageEvent<?, ?> event, final RecursionState state, final String org, final String repos, final String hash) {
         final String urlString = String.format("https://api.github.com/repos/%s/%s/commits/%s", org, repos, hash);
         if (! state.add(urlString)) {
             // already got it this time round
@@ -169,7 +171,7 @@ public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
         return;
     }
 
-    private static void lookupPullReq(final GenericMessageEvent<JBossBot> event, final RecursionState state, final String org, final String repos, final String prId) {
+    private static void lookupPullReq(final AbstractMessageEvent<?, ?> event, final RecursionState state, final String org, final String repos, final String prId) {
         final String urlString = String.format("https://api.github.com/repos/%s/%s/pulls/%s", org, repos, prId);
         if (! state.add(urlString)) {
             // already got it this time round
@@ -215,16 +217,9 @@ public final class GitHubMessageHandler extends ListenerAdapter<JBossBot> {
         return;
     }
 
-    public void onMessage(final MessageEvent<JBossBot> event) throws Exception {
+    public void handleEvent(final EventHandlerContext context, final AbstractMessageEvent<?, ?> event) throws Exception {
         doHandle(event);
-    }
-
-    public void onAction(final ActionEvent<JBossBot> event) throws Exception {
-        doHandle(event);
-    }
-
-    public void onPrivateMessage(final PrivateMessageEvent<JBossBot> event) throws Exception {
-        doHandle(event);
+        super.handleEvent(context, event);
     }
 
     private static final class RecursionState {

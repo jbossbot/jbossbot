@@ -52,6 +52,7 @@ public final class JiraHttpHandler extends AbstractJSONServlet {
 
     protected void handleRequest(final HttpServletRequest req, final HttpServletResponse resp, final Map<String, String> queryParams, final JSON payload) throws IOException {
         try {
+//            System.out.println(payload.toJSON());
             messageHandler.createdNote(bot, payload.get("issue").get("key").asString());
         } catch (Exception e) {
             e.printStackTrace();

@@ -34,6 +34,6 @@ import org.mangosdk.spi.ProviderFor;
 public final class BugzillaProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
-        bot.getListenerManager().addListener(new BugzillaMessageHandler(bot));
+        bot.getThimBot().addEventHandler(new BugzillaMessageHandler(bot));
     }
 }

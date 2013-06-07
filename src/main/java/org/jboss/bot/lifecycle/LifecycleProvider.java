@@ -34,6 +34,6 @@ import org.mangosdk.spi.ProviderFor;
 public final class LifecycleProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
-        bot.getListenerManager().addListener(new Lifecycle());
+        bot.getThimBot().addEventHandler(new Lifecycle());
     }
 }

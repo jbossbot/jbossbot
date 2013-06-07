@@ -36,7 +36,7 @@ public final class AdministrationProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
         final Administration administration = new Administration();
-        bot.getListenerManager().addListener(administration);
+        bot.getThimBot().addEventHandler(administration);
         final String admins = bot.getPrefNode().get("admins", "*!*@redhat/jboss/dmlloyd");
         if (admins != null && ! admins.isEmpty()) {
             final String[] adminArray = admins.split(", *");

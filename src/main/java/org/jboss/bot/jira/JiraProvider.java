@@ -35,7 +35,7 @@ public final class JiraProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
         final JiraMessageHandler messageHandler = new JiraMessageHandler();
-        bot.getListenerManager().addListener(messageHandler);
+        bot.getThimBot().addEventHandler(messageHandler);
         servlet.register(new JiraHttpHandler(bot, messageHandler));
     }
 }

@@ -34,6 +34,6 @@ import org.mangosdk.spi.ProviderFor;
 public final class YouTrackProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
-        bot.getListenerManager().addListener(new YouTrackMessageHandler());
+        bot.getThimBot().addEventHandler(new YouTrackMessageHandler());
     }
 }

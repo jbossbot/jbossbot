@@ -32,7 +32,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,17 +40,18 @@ import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.flurg.thimbot.event.AbstractMessageEvent;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
+import com.flurg.thimbot.event.MessageEvent;
+import com.flurg.thimbot.source.Channel;
+import com.flurg.thimbot.source.Target;
+import com.flurg.thimbot.source.User;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotUtils;
 import org.jboss.logging.Logger;
-import org.pircbotx.Channel;
-import org.pircbotx.User;
-import org.pircbotx.hooks.ListenerAdapter;
-import org.pircbotx.hooks.events.ActionEvent;
-import org.pircbotx.hooks.events.MessageEvent;
-import org.pircbotx.hooks.events.PrivateMessageEvent;
-import org.pircbotx.hooks.types.GenericMessageEvent;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLInputFactory;
@@ -59,96 +59,49 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
-public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
+public final class JiraMessageHandler extends EventHandler {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot.jira");
 
     private static final Pattern JIRA_KEY = Pattern.compile("\\b([A-Z]{2}[A-Z0-9]*)-\\d+", Pattern.CASE_INSENSITIVE);
 
-    private final Map<Channel, Map<String, Long>> channelMap = Collections.synchronizedMap(new HashMap<Channel, Map<String, Long>>());
-    private final Map<User, Map<String, Long>> userMap = Collections.synchronizedMap(new HashMap<User, Map<String, Long>>());
+    private final Map<Target, Map<String, Long>> cache = Collections.synchronizedMap(new HashMap<Target, Map<String, Long>>());
 
-    public void onPrivateMessage(final PrivateMessageEvent<JBossBot> event) throws Exception {
-        final User user = event.getUser();
+    public void handleEvent(final EventHandlerContext context, final AbstractMessageEvent<?, ?> event) throws Exception {
+        final Target target = event.isToMe() ? ((User) event.getSource()).getNick() : event.getTarget();
         String message = event.getMessage();
         List<String> keys;
         List<String> keepKeys;
         keys = getIssueKeys(message);
         if (keys.isEmpty()) return;
         keepKeys = new ArrayList<String>(keys.size());
-        final long dupTime = event.getBot().getPrefNode().node("jira").getLong("duptime", 5L) * 1000000000L;
+        final long dupTime = event.getBot().getPreferences().node("jira").getLong("duptime", 5L) * 1000000000L;
 
-        synchronized (userMap) {
+        synchronized (cache) {
             final long now = System.nanoTime();
-            final Map<String, Long> timeMap = getUserTimeMap(user, dupTime);
+            final Map<String, Long> timeMap = getTimeMap(target);
             for (String key : keys) {
                 final Long time = timeMap.get(key);
                 if (time == null) {
                     timeMap.put(key, Long.valueOf(now));
-                } else if (time.longValue() + dupTime > now) {
+                } else if (now - time.longValue() <= dupTime) {
                     continue;
+                } else {
+                    // replace old expired key
+                    timeMap.put(key, Long.valueOf(now));
                 }
                 keepKeys.add(key);
             }
         }
 
         processKeys(event, keepKeys);
+        super.handleEvent(context, event);
     }
 
-    public void onMessage(final MessageEvent<JBossBot> event) throws Exception {
-        onChannelMessage(event, event.getChannel());
-    }
-
-    public void onAction(final ActionEvent<JBossBot> event) throws Exception {
-        onChannelMessage(event, event.getChannel());
-    }
-
-    void onChannelMessage(final GenericMessageEvent<JBossBot> event, Channel channel) throws Exception {
-        String message = event.getMessage();
-        List<String> keys;
-        List<String> keepKeys;
-        keys = getIssueKeys(message);
-        if (keys.isEmpty()) return;
-        keepKeys = new ArrayList<String>(keys.size());
-        final long dupTime = event.getBot().getPrefNode().node("jira").getLong("duptime", 5L) * 1000000000L;
-
-        synchronized (channelMap) {
-            final long now = System.nanoTime();
-            final Map<String, Long> timeMap = getChannelTimeMap(channel, dupTime);
-            for (String key : keys) {
-                final Long time = timeMap.get(key);
-                if (time == null) {
-                    timeMap.put(key, Long.valueOf(now));
-                } else if (time.longValue() + dupTime > now) {
-                    continue;
-                }
-                keepKeys.add(key);
-            }
-        }
-
-        processKeys(event, keepKeys);
-    }
-
-    private Map<String, Long> getChannelTimeMap(final Channel channel, final long dupTime) {
-        Map<String, Long> timeMap = channelMap.get(channel);
+    private Map<String, Long> getTimeMap(final Target target) {
+        Map<String, Long> timeMap = cache.get(target);
         if (timeMap == null) {
-            channelMap.put(channel, timeMap = new LinkedHashMap<String, Long>() {
-                protected boolean removeEldestEntry(final Map.Entry<String, Long> eldest) {
-                    return eldest.getValue().longValue() + dupTime < System.nanoTime();
-                }
-            });
-        }
-        return timeMap;
-    }
-
-    private Map<String, Long> getUserTimeMap(final User user, final long dupTime) {
-        Map<String, Long> timeMap = userMap.get(user);
-        if (timeMap == null) {
-            userMap.put(user, timeMap = new LinkedHashMap<String, Long>() {
-                protected boolean removeEldestEntry(final Map.Entry<String, Long> eldest) {
-                    return eldest.getValue().longValue() + dupTime < System.nanoTime();
-                }
-            });
+            cache.put(target, timeMap = new HashMap<String, Long>());
         }
         return timeMap;
     }
@@ -170,8 +123,8 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
         return key.substring(0, key.indexOf('-'));
     }
 
-    void processKeys(GenericMessageEvent<JBossBot> event, List<String> keys) throws BackingStoreException {
-        final Preferences jiraNode = event.getBot().getPrefNode().node("jira");
+    void processKeys(final AbstractMessageEvent<?, ?> event, List<String> keys) throws BackingStoreException, IOException {
+        final Preferences jiraNode = event.getBot().getPreferences().node("jira");
         final Set<String> ignored = new HashSet<String>(Arrays.asList(jiraNode.get("ignored", "JSR").split(",\\s*")));
         final Preferences projectsNode = jiraNode.node("projects");
         String project;
@@ -202,7 +155,7 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
         }
     }
 
-    void printIssue(final String prefix, final GenericMessageEvent<JBossBot> event, final IssueInfo issueInfo) {
+    void printIssue(final String prefix, final AbstractMessageEvent<?, ?> event, final IssueInfo issueInfo) throws IOException {
         final String key = issueInfo.key;
         final IrcStringBuilder builder = new IrcStringBuilder();
         if (issueInfo.redirect != null) {
@@ -256,7 +209,7 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
         }
     }
 
-    public void createdNote(final JBossBot bot, final String key) throws BackingStoreException {
+    public void createdNote(final JBossBot bot, final String key) throws BackingStoreException, IOException {
         final Preferences jiraNode = bot.getPrefNode().node("jira");
         final Preferences projectsNode = jiraNode.node("projects");
         String project;
@@ -270,16 +223,19 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
             projectNode = jiraNode.node("default");
         }
         if (! projectNode.nodeExists("channels")) {
+            System.out.println("No channels for JIRA project " + project);
             return;
         }
         String[] channels = projectNode.get("channels", "").split(",\\s*");
         if (channels == null || channels.length == 0) {
+            System.out.println("No channels for JIRA project " + project);
             return;
         }
         url = projectNode.get("url", null);
         if (url == null) {
             url = jiraNode.node("default").get("url", null);
             if (url == null) {
+                System.out.println("No URL for JIRA project " + project);
                 return;
             }
         }
@@ -288,14 +244,13 @@ public final class JiraMessageHandler extends ListenerAdapter<JBossBot> {
         }
         final IssueInfo issueInfo = lookup(url, key);
         final long now = System.nanoTime();
-        final long dupTime = jiraNode.getLong("duptime", 5L) * 1000000000L;
         if (issueInfo != null) {
             for (String name : channels) {
-                final Channel channel = bot.getChannel(name);
-                synchronized (channelMap) {
-                    getChannelTimeMap(channel, dupTime).put(key, Long.valueOf(now));
+                final Channel channel = new Channel(name);
+                synchronized (cache) {
+                    getTimeMap(channel).put(key, Long.valueOf(now));
                 }
-                printIssue("new jira", new MessageEvent<JBossBot>(bot, channel, bot.getUserBot(), key), issueInfo);
+                printIssue("new jira", new MessageEvent(bot.getThimBot(), bot.getThimBot().getBotUser(), channel, key), issueInfo);
             }
         }
     }

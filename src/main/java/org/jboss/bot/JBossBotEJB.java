@@ -23,7 +23,6 @@
 package org.jboss.bot;
 
 import java.io.IOException;
-import org.pircbotx.exception.IrcException;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -45,24 +44,20 @@ public class JBossBotEJB {
 
     @PostConstruct
     public void startup() {
-        final JBossBot bot = new JBossBot();
+        final String openshiftDataDir = System.getenv("OPENSHIFT_DATA_DIR");
+        System.setProperty("java.util.prefs.userRoot", openshiftDataDir + "/" + "java-user-prefs");
+        System.setProperty("java.util.prefs.systemRoot", openshiftDataDir + "/" + "java-system-prefs");
 
-        try {
-            bot.connect();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (IrcException e) {
-            throw new RuntimeException(e);
-        }
-        this.bot = bot;
+        bot = new JBossBot();
     }
-
 
     @PreDestroy
     public void shutdown() {
         final JBossBot bot = this.bot;
-        if (bot != null) {
-            bot.shutdown(true);
+        if (bot != null) try {
+            bot.getThimBot().quit();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
