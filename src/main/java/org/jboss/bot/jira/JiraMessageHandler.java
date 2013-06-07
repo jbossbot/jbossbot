@@ -222,10 +222,6 @@ public final class JiraMessageHandler extends EventHandler {
         } else {
             projectNode = jiraNode.node("default");
         }
-        if (! projectNode.nodeExists("channels")) {
-            System.out.println("No channels for JIRA project " + project);
-            return;
-        }
         String[] channels = projectNode.get("channels", "").split(",\\s*");
         if (channels == null || channels.length == 0) {
             System.out.println("No channels for JIRA project " + project);
