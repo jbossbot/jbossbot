@@ -223,7 +223,7 @@ public final class JiraMessageHandler extends EventHandler {
             projectNode = jiraNode.node("default");
         }
         String[] channels = projectNode.get("channels", "").split(",\\s*");
-        if (channels == null || channels.length == 0) {
+        if (channels == null || channels.length == 0 || channels.length == 1 && channels[0].isEmpty()) {
             System.out.println("No channels for JIRA project " + project);
             return;
         }
