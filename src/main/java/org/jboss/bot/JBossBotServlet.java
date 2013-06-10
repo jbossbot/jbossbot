@@ -37,7 +37,7 @@ import javax.servlet.http.HttpServletResponse;
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-@WebServlet({"/*"})
+@WebServlet(urlPatterns = {"/*"}, loadOnStartup = 1)
 public final class JBossBotServlet extends HttpServlet {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot");
