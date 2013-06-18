@@ -63,7 +63,7 @@ public final class JiraMessageHandler extends EventHandler {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot.jira");
 
-    private static final Pattern JIRA_KEY = Pattern.compile("\\b([A-Z]{2}[A-Z0-9]*)-\\d+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern JIRA_KEY = Pattern.compile("\\b([A-Z]{2}[A-Z0-9]*)-\\d+");
 
     private final Map<Target, Map<String, Long>> cache = Collections.synchronizedMap(new HashMap<Target, Map<String, Long>>());
 
