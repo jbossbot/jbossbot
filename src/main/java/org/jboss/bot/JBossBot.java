@@ -48,7 +48,7 @@ public final class JBossBot {
         Preferences prefs = prefNode;
         final String serverName = prefs.get("server", "irc.freenode.net");
         final boolean ssl = prefs.getBoolean("tls", true);
-        final int port = prefs.getInt("server-port", 7000);
+        final int port = prefs.getInt("server-port", 7070);
         final SocketFactory socketFactory;
         if (ssl) {
             socketFactory = JBossBotUtils.getSSLSocketFactory();
