@@ -222,26 +222,26 @@ public final class JBossBotUtils {
         }
 
         public Socket createSocket(final String host, final int port) throws IOException {
-            return original.createSocket(host, port);
+            return createSocket(SOCKET_FACTORY.createSocket(host, port), host, port, true);
         }
 
         public Socket createSocket(final String host, final int port, final InetAddress localHost, final int localPort) throws IOException {
             if (localPort == 0) {
-                return original.createSocket(host, port);
+                return createSocket(SOCKET_FACTORY.createSocket(host, port), host, port, true);
             } else {
-                return original.createSocket(host, port, localHost, localPort);
+                return createSocket(SOCKET_FACTORY.createSocket(host, port, localHost, localPort), host, port, true);
             }
         }
 
         public Socket createSocket(final InetAddress host, final int port) throws IOException {
-            return original.createSocket(host, port);
+            return createSocket(SOCKET_FACTORY.createSocket(host, port), host.getHostName(), port, true);
         }
 
         public Socket createSocket(final InetAddress host, final int port, final InetAddress localHost, final int localPort) throws IOException {
             if (localPort == 0) {
-                return original.createSocket(host, port);
+                return createSocket(SOCKET_FACTORY.createSocket(host, port), host.getHostName(), port, true);
             } else {
-                return original.createSocket(host, port, localHost, localPort);
+                return createSocket(SOCKET_FACTORY.createSocket(host, port, localHost, localPort), host.getHostName(), port, true);
             }
         }
 
