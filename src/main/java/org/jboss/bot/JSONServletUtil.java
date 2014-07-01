@@ -33,19 +33,38 @@ import java.util.HashMap;
 import java.util.Map;
 import org.jboss.logging.Logger;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public abstract class AbstractJSONServlet extends HttpServlet {
+public final class JSONServletUtil {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot");
 
-    protected void doPost(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
+    private JSONServletUtil() {
+    }
+
+    public static class JSONRequest {
+        private final JSON body;
+        private final Map<String, String> query;
+
+        public JSONRequest(final JSON body, final Map<String, String> query) {
+            this.body = body;
+            this.query = query;
+        }
+
+        public JSON getBody() {
+            return body;
+        }
+
+        public Map<String, String> getQuery() {
+            return query;
+        }
+    }
+
+    public static JSONRequest readJSONPost(final HttpServletRequest req, final HttpServletResponse resp) throws IOException {
         final Map<String, String> queryParams = new HashMap<String, String>();
 
         final String rawQuery = req.getQueryString();
@@ -88,7 +107,7 @@ public abstract class AbstractJSONServlet extends HttpServlet {
                 int sidx = s.indexOf("payload=");
                 if (sidx == -1) {
                     log.debug("No payload");
-                    return;
+                    return null;
                 }
                 int eidx = s.indexOf('&', sidx);
                 p = eidx == -1 ? s.substring(sidx + 8) : s.substring(sidx + 8, eidx);
@@ -96,15 +115,12 @@ public abstract class AbstractJSONServlet extends HttpServlet {
             }
             log.debugf("Payload:%n%s", s);
             JSON json = JSON.parse(s);
-            handleRequest(req, resp, queryParams, json);
+            return new JSONRequest(json, queryParams);
         } catch (RuntimeException e) {
             e.printStackTrace();
             throw e;
         } finally {
             safeClose(requestBody);
         }
-
     }
-
-    protected abstract void handleRequest(final HttpServletRequest req, HttpServletResponse resp, final Map<String, String> queryParams, JSON payload) throws IOException;
 }

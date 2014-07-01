@@ -57,7 +57,7 @@ public final class JBossBot {
         }
         final ThimBot bot = new ThimBot(prefNode, new InetSocketAddress(serverName, port), socketFactory);
         bot.setLogin(prefs.get("login", "jbossbot"));
-        bot.setDesiredNick(prefs.get("nick", "jbossbot_"));
+        bot.setDesiredNick(prefs.get("nick", "jbossbot"));
         bot.setRealName(prefs.get("realname", "JBossBot"));
         bot.setVersion(prefs.get("version", "JBoss Bot, accept no substitute!"));
         this.bot = bot;

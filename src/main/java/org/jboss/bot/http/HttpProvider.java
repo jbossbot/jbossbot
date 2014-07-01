@@ -20,7 +20,7 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot.jira;
+package org.jboss.bot.http;
 
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotServiceProvider;
@@ -31,14 +31,13 @@ import org.mangosdk.spi.ProviderFor;
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
 @ProviderFor(JBossBotServiceProvider.class)
-public final class JiraProvider implements JBossBotServiceProvider {
+public final class HttpProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
-        final JiraMessageHandler messageHandler = new JiraMessageHandler(bot);
-        bot.getThimBot().addEventHandler(messageHandler);
+        if (servlet != null) servlet.register(new HttpHttpHandler(bot));
     }
 
     public int getPriority() {
-        return 0x200;
+        return 0x100;
     }
 }

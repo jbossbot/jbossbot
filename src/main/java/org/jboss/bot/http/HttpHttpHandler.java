@@ -20,25 +20,28 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot.jira;
+package org.jboss.bot.http;
 
+import java.io.IOException;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import org.jboss.bot.JBossBot;
-import org.jboss.bot.JBossBotServiceProvider;
-import org.jboss.bot.JBossBotServlet;
-import org.mangosdk.spi.ProviderFor;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-@ProviderFor(JBossBotServiceProvider.class)
-public final class JiraProvider implements JBossBotServiceProvider {
+class HttpHttpHandler extends HttpServlet {
 
-    public void register(final JBossBot bot, final JBossBotServlet servlet) {
-        final JiraMessageHandler messageHandler = new JiraMessageHandler(bot);
-        bot.getThimBot().addEventHandler(messageHandler);
+    private final JBossBot bot;
+
+    public HttpHttpHandler(final JBossBot bot) {
+        this.bot = bot;
     }
 
-    public int getPriority() {
-        return 0x200;
+    protected void service(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
+        bot.getThimBot().dispatch(new HttpRequestEvent(bot.getThimBot(), req, resp));
     }
 }

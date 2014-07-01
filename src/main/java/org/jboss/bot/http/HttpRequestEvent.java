@@ -20,42 +20,38 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot.jira;
+package org.jboss.bot.http;
 
-import com.zwitserloot.json.JSON;
-import java.io.IOException;
-import java.util.Map;
-import org.jboss.bot.AbstractJSONServlet;
-import org.jboss.bot.JBossBot;
-
-import javax.servlet.ServletException;
+import com.flurg.thimbot.ThimBot;
+import com.flurg.thimbot.event.Event;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-public final class JiraHttpHandler extends AbstractJSONServlet {
-    private final JBossBot bot;
-    private final JiraMessageHandler messageHandler;
+public class HttpRequestEvent extends Event {
 
-    public JiraHttpHandler(final JBossBot bot, final JiraMessageHandler messageHandler) {
-        this.bot = bot;
-        this.messageHandler = messageHandler;
+    private final HttpServletRequest request;
+    private final HttpServletResponse response;
+
+    public HttpRequestEvent(final ThimBot bot, final HttpServletRequest request, final HttpServletResponse response) {
+        super(bot);
+        this.request = request;
+        this.response = response;
     }
 
-    protected void doPost(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
-        if ("Atlassian-Webhooks-Plugin".equals(req.getHeader("User-agent"))) {
-            super.doPost(req, resp);
-        }
+    public HttpServletRequest getRequest() {
+        return request;
     }
 
-    protected void handleRequest(final HttpServletRequest req, final HttpServletResponse resp, final Map<String, String> queryParams, final JSON payload) throws IOException {
-        try {
-//            System.out.println(payload.toJSON());
-            messageHandler.createdNote(bot, payload.get("issue").get("key").asString());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public HttpServletResponse getResponse() {
+        return response;
+    }
+
+    public void dispatch(final EventHandlerContext context, final EventHandler handler) throws Exception {
+        handler.handleEvent(context, this);
     }
 }

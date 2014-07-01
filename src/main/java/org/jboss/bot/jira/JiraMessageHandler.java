@@ -61,9 +61,14 @@ import com.flurg.thimbot.event.OutboundMessageEvent;
 import com.flurg.thimbot.event.PrivateActionEvent;
 import com.flurg.thimbot.event.PrivateMessageEvent;
 import com.flurg.thimbot.event.TextEvent;
+import com.zwitserloot.json.JSON;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotUtils;
+import org.jboss.bot.JSONServletUtil;
+import org.jboss.bot.http.HttpRequestEvent;
 import org.jboss.bot.url.AbstractURLEvent;
 import org.jboss.logging.Logger;
 
@@ -82,7 +87,10 @@ public final class JiraMessageHandler extends EventHandler {
     private final ConcurrentMap<String, Map<String, CommonEvent>> events = new ConcurrentHashMap<String, Map<String, CommonEvent>>();
     private final HandlerKey<RecursionState> handlerKey = new HandlerKey<RecursionState>();
 
-    public JiraMessageHandler() {
+    private final JBossBot bot;
+
+    public JiraMessageHandler(final JBossBot bot) {
+        this.bot = bot;
     }
 
     static final class Key {
@@ -152,6 +160,22 @@ public final class JiraMessageHandler extends EventHandler {
     }
 
     public void handleEvent(final EventHandlerContext context, final Event event) throws Exception {
+        if (event instanceof HttpRequestEvent) {
+            final HttpServletRequest req = ((HttpRequestEvent) event).getRequest();
+            final HttpServletResponse resp = ((HttpRequestEvent) event).getResponse();
+            if (! "Atlassian-Webhooks-Plugin".equalsIgnoreCase(req.getHeader("User-agent"))) {
+                super.handleEvent(context, event);
+                return;
+            }
+            final JSONServletUtil.JSONRequest jsonRequest = JSONServletUtil.readJSONPost(req, resp);
+            final JSON payload = jsonRequest.getBody();
+            try {
+                createdNote(bot, payload.get("issue").get("key").asString());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return;
+        }
         if (!(event instanceof AbstractURLEvent)) {
             super.handleEvent(context, event);
             return;

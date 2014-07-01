@@ -22,11 +22,13 @@
 
 package org.jboss.bot.github;
 
+import com.flurg.thimbot.Priority;
 import com.flurg.thimbot.event.Event;
 import com.flurg.thimbot.event.EventHandler;
 import com.flurg.thimbot.event.EventHandlerContext;
 import com.flurg.thimbot.event.HandlerKey;
 import com.flurg.thimbot.util.IRCStringBuilder;
+import com.flurg.thimbot.util.IRCStringUtil;
 import com.zwitserloot.json.JSON;
 import java.io.BufferedInputStream;
 import java.io.InputStream;
@@ -34,17 +36,25 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotUtils;
+import org.jboss.bot.JSONServletUtil;
+import org.jboss.bot.http.HttpRequestEvent;
 import org.jboss.bot.url.AbstractURLEvent;
-import org.jboss.bot.url.ChannelMessageURLEvent;
 import org.jboss.logging.Logger;
 
 /**
@@ -54,6 +64,7 @@ public final class GitHubMessageHandler extends EventHandler {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot.github");
 
+    private final JBossBot bot;
     private final long dupeTime;
 
     private final ConcurrentMap<String, Map<Key, Event>> events = new ConcurrentHashMap<String, Map<Key, Event>>();
@@ -106,32 +117,178 @@ public final class GitHubMessageHandler extends EventHandler {
     }
 
     public GitHubMessageHandler(JBossBot bot) {
+        this.bot = bot;
         dupeTime = bot.getPrefNode().getLong("github.cache.duplicate.ms", 10000);
     }
 
     private static final Pattern GH_AUTHORITY = Pattern.compile("(?:www\\.)?github\\.com");
 
     public void handleEvent(final EventHandlerContext context, final Event event) throws Exception {
-        if (event instanceof AbstractURLEvent) {
+        if (event instanceof HttpRequestEvent) {
+            final HttpServletRequest req = ((HttpRequestEvent) event).getRequest();
+            if (! req.getMethod().equalsIgnoreCase("POST")) {
+                super.handleEvent(context, event);
+                return;
+            }
+            final String gitHubEvent = req.getHeader("X-github-event");
+            if (gitHubEvent != null) {
+                final HttpServletResponse resp = ((HttpRequestEvent) event).getResponse();
+                final JSONServletUtil.JSONRequest jsonRequest = JSONServletUtil.readJSONPost(req, resp);
+                final JSON json = jsonRequest.getBody();
+                final Map<String, String> queryParams = jsonRequest.getQuery();
+                boolean simpleSingle = true;
+                int limit = 7;
+                final String limitStr = queryParams.get("limit");
+                if (limitStr != null && ! limitStr.isEmpty()) {
+                    limit = Integer.parseInt(limitStr);
+                }
+                final IrcStringBuilder b = new IrcStringBuilder();
+                final JSON reposNameNode = json.get("repository").get("name");
+                if (! reposNameNode.exists()) {
+                    System.out.println("No repository name");
+                    return;
+                }
+                String reposName = reposNameNode.asString();
+                final JSON ownerNode = json.get("repository").get("owner");
+                String owner = ownerNode.get("name").exists() ? ownerNode.get("name").asString() : ownerNode.get("login").exists() ? ownerNode.get("login").asString() : null;
+                if (reposName == null || owner == null) {
+                    return;
+                }
+                final boolean learn = bot.getPrefNode().node("github").getBoolean("learn", false);
+                final Set<String> channels;
+                final String unsplitChannels = bot.getPrefNode().node("github/projects").node(owner).node(reposName).get("channels", "");
+                if (unsplitChannels == null || unsplitChannels.isEmpty()) {
+                    channels = new HashSet<>(0);
+                } else {
+                    final String[] chArray = unsplitChannels.split("\\s*,\\s*");
+                    if (chArray.length == 0) {
+                        channels = new HashSet<>(0);
+                    } else {
+                        channels = new HashSet<>(Arrays.asList(chArray));
+                    }
+                }
+                if (learn) {
+                    final String pathInfo = req.getPathInfo();
+                    if (pathInfo.startsWith("/jbossbot/")) {
+                        String chName = pathInfo.substring(10);
+                        while (chName.endsWith("/")) chName = chName.substring(0, chName.length() - 1);
+                        if (channels.add(chName) && IRCStringUtil.isChannel(chName)) {
+                            Iterator<String> i = new TreeSet<String>(channels).iterator();
+                            StringBuilder x = new StringBuilder();
+                            if (i.hasNext()) {
+                                x.append(i.next());
+                                while (i.hasNext()) {
+                                    x.append(',').append(i.next());
+                                }
+                            }
+                            bot.getPrefNode().node("github/projects").node(owner).node(reposName).put("channels", x.toString());
+                        }
+                    }
+                }
+                if (channels.isEmpty()) {
+                    System.out.printf("No channel mapping for %s/%s%n", owner, reposName);
+                    return;
+                }
+                switch (gitHubEvent) {
+                    case "push": {
+                        final String ref = json.get("ref").asString();
+                        final int refIdx = ref.lastIndexOf('/');
+                        final String branch = refIdx == -1 ? ref : ref.substring(refIdx + 1);
+                        final List<JSON> commitsList = json.get("commits").asList();
+                        final List<JSON> commits = limit == -1 || limit > commitsList.size() ? commitsList : commitsList.subList(0, limit);
+                        for (JSON commit : commits) {
+                            b.clear();
+                            b.b().append("git").b().nc().append(' ');
+                            b.append('[').fc(12).append(reposName).nc().append("]");
+                            b.append(' ').b().append("push ").b().nc().fc(10).append(branch).nc();
+                            String commitId = commit.get("id").asString();
+                            b.fc(7).append(' ').append(commitId.substring(0, 7)).append("..").nc().append(' ');
+                            b.fc(6).append(commit.get("author").get("name").asString()).nc().append(' ');
+                            String msg = commit.get("message").asString();
+                            if (msg.indexOf('\n') != -1) {
+                                b.append(msg.substring(0, msg.indexOf('\n'))).fc(14).append("...").nc();
+                            } else {
+                                b.append(msg);
+                            }
+                            bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
+                        }
+                        if (commitsList.size() > commits.size()) {
+                            final int diff = commitsList.size() - commits.size();
+                            b.clear();
+                            b.b().append("git").b().nc().append(' ');
+                            b.append('[').fc(12).append(reposName).nc().append("]");
+                            b.append(' ').b().append("push ").b().nc().fc(10).append(branch).nc();
+                            b.append(" (").append(diff).append(" additional commit");
+                            if (diff != 1) {
+                                b.append('s');
+                            }
+                            b.append(" not shown)");
+                            bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
+                        }
+                        final String before = json.get("before").asString();
+                        final String after = json.get("after").asString();
+                        b.clear();
+                        b.b().append("git").b().nc().append(' ');
+                        b.append('[').fc(12).append(reposName).nc().append("]");
+                        b.append(' ').b().append("push ").b().nc().fc(10).append(branch).nc();
+                        b.append(' ').b().append("URL: ").nc();
+                        if (commits.size() == 1 && simpleSingle) {
+                            RecursionState state = context.getContextValue(handlerKey);
+                            final String hash = after.substring(0, 9);
+                            state.add(new Key(owner, reposName, hash, "commit"));
+                            b.append("http://github.com/").append(owner).append('/').append(reposName).append("/commit/");
+                            b.append(hash);
+                        } else {
+                            b.append("http://github.com/").append(owner).append('/').append(reposName).append("/compare/");
+                            b.append(before.substring(0, 7)).append("...").append(after.substring(0, 7));
+                        }
+                        bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
+                        break;
+                    }
+                    case "pull_request": {
+                        final JSON pullRequest = json.get("pull_request");
+                        owner = pullRequest.get("base").get("repo").get("owner").get("login").asString();
+                        reposName = pullRequest.get("base").get("repo").get("name").asString();
+                        final String action = json.get("action").asString();
+                        if ("opened".equals(action) || "reopened".equals(action)) {
+                            RecursionState state = context.getContextValue(handlerKey);
+                            state.add(new Key(owner, reposName, json.get("number").asString(), "pull_request"));
+                            b.clear();
+                            b.b().append("new git pull req").b().nc().append(' ');
+                            b.append('[').fc(12).append(reposName).nc().append("] ");
+                            b.append('(').fc(7).append(pullRequest.get("state").asString()).nc().append(") ");
+                            b.fc(6).append(pullRequest.get("user").get("login").asString()).nc().append(' ');
+                            String title = pullRequest.get("title").asString();
+                            b.append(title);
+                            b.fc(11).append(' ').append(pullRequest.get("html_url").asString());
+                            bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
+                        }
+                        break;
+                    }
+                    default: {
+                        System.out.printf("Unknown git event type %s%n", gitHubEvent);
+                        return;
+                    }
+                }
+            } else {
+                super.handleEvent(context, event);
+                return;
+            }
+        } else if (event instanceof AbstractURLEvent) {
             final AbstractURLEvent<?> inboundUrlEvent = (AbstractURLEvent<?>) event;
             final URI uri = inboundUrlEvent.getUri();
             final String authority = uri.getAuthority();
             if (authority != null && GH_AUTHORITY.matcher(authority).matches()) {
-                System.out.println("matched authority");
                 final String path = uri.getPath();
                 if (path != null) {
-                    System.out.println("matched path");
                     RecursionState state = context.getContextValue(handlerKey);
                     if (state == null) context.putContextValue(handlerKey, state = new RecursionState());
                     final String[] parts = path.split("/+");
                     if (parts.length >= 4) {
-                        System.out.println("matched four parts");
                         final String obj = parts[3];
                         if (obj.equals("pull")) {
-                            System.out.println("matched pull");
                             lookupPullReq(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
                         } else if (obj.equals("commit") || obj.equals("blob")) {
-                            System.out.println("matched commit/blob");
                             lookup(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
                         } else {
                             System.out.println("didn't match '" + obj + "'");

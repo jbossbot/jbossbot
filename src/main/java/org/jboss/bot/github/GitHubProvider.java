@@ -36,7 +36,6 @@ public final class GitHubProvider implements JBossBotServiceProvider {
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
         final GitHubMessageHandler messageHandler = new GitHubMessageHandler(bot);
         bot.getThimBot().addEventHandler(messageHandler);
-        if (servlet != null) servlet.register(new GitHubHttpHandler(bot, messageHandler));
     }
 
     public int getPriority() {

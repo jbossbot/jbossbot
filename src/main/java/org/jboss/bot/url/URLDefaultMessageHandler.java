@@ -70,9 +70,12 @@ public final class URLDefaultMessageHandler extends EventHandler {
         try {
             document = connection.get();
             final String title = document.title().trim();
-            s = b.b().append("Title: ").b().nc().fc(3).append(title).nc().append(" • ").b().u().append(uri).u().b().nc().toString();
+            if (title.isEmpty()) {
+                return;
+            }
+            s = b.b().append("Title: ").b().nc().fc(3).append(title).nc().toString();
         } catch (HttpStatusException e) {
-            s = b.fc(4).append("Status ").append(e.getStatusCode()).nc().append(" • ").b().u().append(uri).u().b().nc().toString();
+            s = b.fc(4).append("Status ").append(e.getStatusCode()).nc().toString();
         }
         event.sendMessageResponse(s);
     }
