@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,13 +22,15 @@
 
 package org.jboss.bot;
 
-import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.ServiceLoader;
 import java.util.prefs.Preferences;
 
 import com.flurg.thimbot.ThimBot;
+import com.flurg.thimbot.handler.AuthenticationHandler;
 import org.jboss.logging.Logger;
 
 import javax.net.SocketFactory;
@@ -46,7 +48,7 @@ public final class JBossBot {
         Preferences prefs = prefNode;
         final String serverName = prefs.get("server", "irc.freenode.net");
         final boolean ssl = prefs.getBoolean("tls", true);
-        final int port = prefs.getInt("server-port", 7070);
+        final int port = prefs.getInt("server-port", 7000);
         final SocketFactory socketFactory;
         if (ssl) {
             socketFactory = JBossBotUtils.getSSLSocketFactory();
@@ -55,7 +57,7 @@ public final class JBossBot {
         }
         final ThimBot bot = new ThimBot(prefNode, new InetSocketAddress(serverName, port), socketFactory);
         bot.setLogin(prefs.get("login", "jbossbot"));
-        bot.setInitialNick(prefs.get("nick", "jbossbot"));
+        bot.setDesiredNick(prefs.get("nick", "jbossbot_"));
         bot.setRealName(prefs.get("realname", "JBossBot"));
         bot.setVersion(prefs.get("version", "JBoss Bot, accept no substitute!"));
         this.bot = bot;
@@ -65,25 +67,25 @@ public final class JBossBot {
         return prefNode;
     }
 
-    static void safeClose(Closeable c) {
-        try {
-            c.close();
-        } catch (Throwable ignored) {}
-    }
-
-    static void safeClose(Socket c) {
-        try {
-            c.close();
-        } catch (Throwable ignored) {}
-    }
-
-    static void safeClose(ServerSocket c) {
-        try {
-            c.close();
-        } catch (Throwable ignored) {}
-    }
-
     public ThimBot getThimBot() {
         return bot;
+    }
+
+    public static void main(String[] args) throws IOException {
+        final JBossBot bot = new JBossBot();
+        Preferences nickserv = bot.getPrefNode().node("nickserv");
+        String nick = nickserv.get("nick", "jbossbot");
+        char[] password = nickserv.get("password", "").toCharArray();
+        bot.getThimBot().addEventHandler(new AuthenticationHandler(nick, password));
+        final ArrayList<JBossBotServiceProvider> providers = new ArrayList<JBossBotServiceProvider>();
+        for (JBossBotServiceProvider provider : ServiceLoader.load(JBossBotServiceProvider.class, JBossBotServlet.class.getClassLoader())) {
+            providers.add(provider);
+        }
+        Collections.sort(providers, JBossBotServiceProvider.COMPARATOR);
+        for (JBossBotServiceProvider provider : providers) {
+            log.debugf("Registering %s", provider);
+            provider.register(bot, null);
+        }
+        bot.getThimBot().connect();
     }
 }

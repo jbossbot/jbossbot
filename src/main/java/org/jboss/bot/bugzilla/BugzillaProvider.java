@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -35,5 +35,9 @@ public final class BugzillaProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
         bot.getThimBot().addEventHandler(new BugzillaMessageHandler(bot));
+    }
+
+    public int getPriority() {
+        return 0x200;
     }
 }

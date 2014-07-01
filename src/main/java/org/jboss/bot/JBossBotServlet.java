@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -23,8 +23,12 @@
 package org.jboss.bot;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.ServiceLoader;
 import java.util.concurrent.CopyOnWriteArrayList;
+
 import org.jboss.logging.Logger;
 
 import javax.ejb.EJB;
@@ -49,7 +53,13 @@ public final class JBossBotServlet extends HttpServlet {
 
     public void init() throws ServletException {
         final JBossBot bot = ejb.getBot();
+
+        final ArrayList<JBossBotServiceProvider> providers = new ArrayList<JBossBotServiceProvider>();
         for (JBossBotServiceProvider provider : ServiceLoader.load(JBossBotServiceProvider.class, JBossBotServlet.class.getClassLoader())) {
+            providers.add(provider);
+        }
+        Collections.sort(providers, JBossBotServiceProvider.COMPARATOR);
+        for (JBossBotServiceProvider provider : providers) {
             log.debugf("Registering %s", provider);
             provider.register(bot, this);
         }
@@ -65,6 +75,21 @@ public final class JBossBotServlet extends HttpServlet {
     }
 
     protected void service(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
+        final Enumeration<String> requestHeaders = req.getHeaderNames();
+
+        log.infof("Request: %s to %s", req.getMethod(), req.getRequestURI());
+
+        while (requestHeaders.hasMoreElements()) {
+            String key = requestHeaders.nextElement();
+            final Enumeration<String> list = req.getHeaders(key);
+            if (list != null) {
+                while (list.hasMoreElements()) {
+                    String value = list.nextElement();
+                    log.infof("Header: %s = %s", key, value);
+                }
+            }
+        }
+
         for (HttpServlet subServlet : subServlets) {
             subServlet.service(req, resp);
             if (resp.isCommitted()) {

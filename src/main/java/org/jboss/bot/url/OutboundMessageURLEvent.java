@@ -20,26 +20,33 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot.jira;
+package org.jboss.bot.url;
 
-import org.jboss.bot.JBossBot;
-import org.jboss.bot.JBossBotServiceProvider;
-import org.jboss.bot.JBossBotServlet;
-import org.mangosdk.spi.ProviderFor;
+import java.net.URI;
+import java.util.Set;
+
+import com.flurg.thimbot.ThimBot;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
+import com.flurg.thimbot.event.MessageRespondableEvent;
+import com.flurg.thimbot.event.MultiTargetEvent;
+import com.flurg.thimbot.event.OutboundEvent;
+import com.flurg.thimbot.event.OutboundMessageEvent;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-@ProviderFor(JBossBotServiceProvider.class)
-public final class JiraProvider implements JBossBotServiceProvider {
+public final class OutboundMessageURLEvent extends AbstractURLEvent<OutboundMessageEvent> implements OutboundEvent, MultiTargetEvent, MessageRespondableEvent {
 
-    public void register(final JBossBot bot, final JBossBotServlet servlet) {
-        final JiraMessageHandler messageHandler = new JiraMessageHandler();
-        bot.getThimBot().addEventHandler(messageHandler);
-        if (servlet != null) servlet.register(new JiraHttpHandler(bot, messageHandler));
+    public OutboundMessageURLEvent(final ThimBot bot, final OutboundMessageEvent parent, final URI uri) {
+        super(bot, parent, uri);
     }
 
-    public int getPriority() {
-        return 0x200;
+    public void dispatch(final EventHandlerContext context, final EventHandler handler) throws Exception {
+        handler.handleEvent(context, this);
+    }
+
+    public Set<String> getTargets() {
+        return getParent().getTargets();
     }
 }

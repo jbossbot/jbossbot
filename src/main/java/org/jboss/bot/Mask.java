@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -24,8 +24,6 @@ package org.jboss.bot;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.flurg.thimbot.source.User;
 
 public final class Mask {
     private static final Pattern ALL = Pattern.compile(".*");
@@ -80,7 +78,14 @@ public final class Mask {
         return Pattern.compile(b.toString());
     }
 
-    public boolean matches(final User user) {
-        return matches(user.getName(), user.getLogin(), user.getHost());
+    public boolean matches(final String user) {
+        final int p1 = user.indexOf('!');
+        if (p1 == -1) return false;
+        final int p2 = user.indexOf('@', p1 + 1);
+        return p2 != -1 && matches(user.substring(0, p1), user.substring(p1 + 1, p2), user.substring(p2 + 1));
+    }
+
+    public String toString() {
+        return String.format("%s!%s@%s", nickMask, nameMask, hostMask);
     }
 }

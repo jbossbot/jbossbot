@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,25 +22,29 @@
 
 package org.jboss.bot.github;
 
-import com.flurg.thimbot.event.AbstractMessageEvent;
+import com.flurg.thimbot.event.Event;
 import com.flurg.thimbot.event.EventHandler;
 import com.flurg.thimbot.event.EventHandlerContext;
-import com.flurg.thimbot.source.Target;
+import com.flurg.thimbot.event.HandlerKey;
+import com.flurg.thimbot.util.IRCStringBuilder;
 import com.zwitserloot.json.JSON;
 import java.io.BufferedInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
+import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotUtils;
+import org.jboss.bot.url.AbstractURLEvent;
+import org.jboss.bot.url.ChannelMessageURLEvent;
 import org.jboss.logging.Logger;
 
 /**
@@ -50,79 +54,107 @@ public final class GitHubMessageHandler extends EventHandler {
 
     private static final Logger log = Logger.getLogger("org.jboss.bot.github");
 
-    private final ThreadLocal<RecursionState> recursionState = new ThreadLocal<RecursionState>() {
-        protected RecursionState initialValue() {
-            return new RecursionState();
+    private final long dupeTime;
+
+    private final ConcurrentMap<String, Map<Key, Event>> events = new ConcurrentHashMap<String, Map<Key, Event>>();
+    private HandlerKey<RecursionState> handlerKey = new HandlerKey<RecursionState>();
+
+    static final class Key {
+        private final String org;
+        private final String repos;
+        private final String id;
+        private final String kind;
+
+        Key(final String org, final String repos, final String id, final String kind) {
+            this.org = org;
+            this.repos = repos;
+            this.id = id;
+            this.kind = kind;
         }
-    };
 
-    public GitHubMessageHandler() {
+        public String getOrg() {
+            return org;
+        }
 
-    }
+        public String getRepos() {
+            return repos;
+        }
 
-    private static final Pattern GIT_HUB_PATTERN = Pattern.compile("https?://(?:www\\.)?github\\.com/+([^/]+)/+([^/]+)/+(?:commit|blob)/+([0-9a-fA-F]+)");
-    private static final Pattern MANUAL_PATTERN = Pattern.compile("%git\\s+(?:(\\S+)\\s+)?(\\S+)\\s+([0-9a-fA-F]+)\\s*");
-    private static final Pattern PULL_REQ_PATTERN1 = Pattern.compile("(?:([-A-Za-z0-9_]+)/)?([-A-Za-z0-9_]+)\\s+#(\\d+)");
-    private static final Pattern PULL_REQ_PATTERN2 = Pattern.compile("https?://(?:www\\.)?github\\.com/+([^/]+)/+([^/]+)/+pull/+(\\d+)");
+        public String getId() {
+            return id;
+        }
 
-    private boolean doHandle(final AbstractMessageEvent<?, ?> event) {
-        final String msg = event.getMessage();
-        final RecursionState state = recursionState.get();
-        state.enter();
-        try {
-            Matcher matcher = GIT_HUB_PATTERN.matcher(msg);
-            while (matcher.find()) {
-                final String org = matcher.group(1);
-                final String repos = matcher.group(2);
-                final String hash = matcher.group(3);
-                lookup(event, state, org, repos, hash);
-            }
-            matcher = MANUAL_PATTERN.matcher(msg);
-            while (matcher.find()) {
-                final String org = matcher.group(1);
-                final String repos = matcher.group(2);
-                final String hash = matcher.group(3);
-                lookup(event, state, org == null ? "wildfly" : org, repos, hash);
-            }
-            matcher = PULL_REQ_PATTERN1.matcher(msg);
-            while (matcher.find()) {
-                final String org = matcher.group(1);
-                final String repos = matcher.group(2);
-                final String prId = matcher.group(3);
-                lookupPullReq(event, state, org == null ? "wildfly" : org, repos, prId);
-            }
-            matcher = PULL_REQ_PATTERN2.matcher(msg);
-            while (matcher.find()) {
-                final String org = matcher.group(1);
-                final String repos = matcher.group(2);
-                final String prId = matcher.group(3);
-                lookupPullReq(event, state, org, repos, prId);
-            }
-            return false;
-        } finally {
-            state.exit();
+        public String getKind() {
+            return kind;
+        }
+
+        public boolean equals(final Object obj) {
+            return obj instanceof Key && equals((Key) obj);
+        }
+
+        public boolean equals(final Key obj) {
+            return obj != null && id.equals(obj.id) && repos.equals(obj.repos) && kind.equals(obj.kind) && org.equals(obj.org);
+        }
+
+        public int hashCode() {
+            int hc = id.hashCode();
+            hc = 31 * hc + repos.hashCode();
+            hc = 31 * hc + kind.hashCode();
+            hc = 31 * hc + org.hashCode();
+            return hc;
         }
     }
 
-    void enter() {
-        recursionState.get().enter();
+    public GitHubMessageHandler(JBossBot bot) {
+        dupeTime = bot.getPrefNode().getLong("github.cache.duplicate.ms", 10000);
     }
 
-    void exit() {
-        recursionState.get().exit();
+    private static final Pattern GH_AUTHORITY = Pattern.compile("(?:www\\.)?github\\.com");
+
+    public void handleEvent(final EventHandlerContext context, final Event event) throws Exception {
+        if (event instanceof AbstractURLEvent) {
+            final AbstractURLEvent<?> inboundUrlEvent = (AbstractURLEvent<?>) event;
+            final URI uri = inboundUrlEvent.getUri();
+            final String authority = uri.getAuthority();
+            if (authority != null && GH_AUTHORITY.matcher(authority).matches()) {
+                System.out.println("matched authority");
+                final String path = uri.getPath();
+                if (path != null) {
+                    System.out.println("matched path");
+                    RecursionState state = context.getContextValue(handlerKey);
+                    if (state == null) context.putContextValue(handlerKey, state = new RecursionState());
+                    final String[] parts = path.split("/+");
+                    if (parts.length >= 4) {
+                        System.out.println("matched four parts");
+                        final String obj = parts[3];
+                        if (obj.equals("pull")) {
+                            System.out.println("matched pull");
+                            lookupPullReq(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                        } else if (obj.equals("commit") || obj.equals("blob")) {
+                            System.out.println("matched commit/blob");
+                            lookup(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                        } else {
+                            System.out.println("didn't match '" + obj + "'");
+                        }
+                    }
+                }
+                return;
+            }
+        }
+        super.handleEvent(context, event);
     }
 
-    void add(String org, String repos, String hash) {
-        recursionState.get().add(String.format("https://api.github.com/repos/%s/%s/commits/%s", org, repos, hash));
+    void add(RecursionState state, String org, String repos, String hash) {
+        state.add(new Key(org, repos, hash, "commit"));
     }
 
-    void addPR(String org, String repos, String prId) {
-        recursionState.get().add(String.format("https://api.github.com/repos/%s/%s/pulls/%s", org, repos, prId));
+    void addPR(RecursionState state, String org, String repos, String prId) {
+        state.add(new Key(org, repos, prId, "pull_request"));
     }
 
-    private static void lookup(final AbstractMessageEvent<?, ?> event, final RecursionState state, final String org, final String repos, final String hash) {
+    private void lookup(final AbstractURLEvent<?> event, final RecursionState state, final String org, final String repos, final String hash) {
         final String urlString = String.format("https://api.github.com/repos/%s/%s/commits/%s", org, repos, hash);
-        if (! state.add(urlString)) {
+        if (! state.add(new Key(org, repos, hash, "commit"))) {
             // already got it this time round
             return;
         }
@@ -135,32 +167,35 @@ public final class GitHubMessageHandler extends EventHandler {
                     log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
                     return;
                 }
-                final StringBuilder b = new StringBuilder();
-                final InputStream is = conn.getInputStream();
-                try {
-                    final InputStreamReader reader = new InputStreamReader(new BufferedInputStream(is));
-                    int c;
-                    while ((c = reader.read()) != -1) {
-                        b.append((char) c);
+                final IRCStringBuilder b = new IRCStringBuilder();
+                try (final InputStream is = conn.getInputStream()) {
+                    try (BufferedInputStream bis = new BufferedInputStream(is)) {
+                        try (InputStreamReader reader = new InputStreamReader(bis)) {
+                            int c;
+                            while ((c = reader.read()) != -1) {
+                                b.append((char) c);
+                            }
+                        }
                     }
-                } finally {
-                    is.close();
                 }
                 final JSON json = JSON.parse(b.toString());
                 b.setLength(0);
-                b.append((char)2).append("git").append((char)2).append((char)15).append(' ');
+                b.b().append("git").b().nc().append(' ');
                 JSON commit = json.get("commit");
                 String commitId = json.get("sha").asString();
                 commitId = " " + commitId.substring(0, 7) + "..";
-                b.append('[').append((char)3).append("12").append(repos).append((char)15).append("]");
-                b.append((char)3).append('7').append(commitId).append((char)15).append(' ');
-                b.append((char)3).append("6").append(commit.get("author").get("name").asString()).append((char)15).append(' ');
+                b.append('[').fc(12).append(repos).nc().append("]");
+                b.fc(7).append(commitId).nc().append(' ');
+                b.fc(6).append(commit.get("author").get("name").asString()).nc().append(' ');
                 String commitMsg = commit.get("message").asString();
                 if (commitMsg.indexOf('\n') != -1) {
-                    commitMsg = commitMsg.substring(0, commitMsg.indexOf('\n')) + ((char)3) + "14" + "..." + ((char)15);
+                    b.append(commitMsg.indexOf('\n'));
+                    b.fc(14).append("...").nc();
+                } else {
+                    b.append(commitMsg);
                 }
-                b.append(commitMsg);
-                event.respond(b.toString());
+
+                event.sendMessageResponse(b.toString());
             } finally {
 //                        conn.disconnect();
             }
@@ -171,9 +206,9 @@ public final class GitHubMessageHandler extends EventHandler {
         return;
     }
 
-    private static void lookupPullReq(final AbstractMessageEvent<?, ?> event, final RecursionState state, final String org, final String repos, final String prId) {
+    private static void lookupPullReq(final AbstractURLEvent<?> event, final RecursionState state, final String org, final String repos, final String prId) {
         final String urlString = String.format("https://api.github.com/repos/%s/%s/pulls/%s", org, repos, prId);
-        if (! state.add(urlString)) {
+        if (! state.add(new Key(org, repos, prId, "pull_request"))) {
             // already got it this time round
             return;
         }
@@ -187,26 +222,26 @@ public final class GitHubMessageHandler extends EventHandler {
                     return;
                 }
                 final StringBuilder b = new StringBuilder();
-                final InputStream is = conn.getInputStream();
-                try {
-                    final InputStreamReader reader = new InputStreamReader(new BufferedInputStream(is));
-                    int c;
-                    while ((c = reader.read()) != -1) {
-                        b.append((char) c);
+                try (InputStream is = conn.getInputStream()) {
+                    try (BufferedInputStream bis = new BufferedInputStream(is)) {
+                        try (InputStreamReader reader = new InputStreamReader(bis)) {
+                            int c;
+                            while ((c = reader.read()) != -1) {
+                                b.append((char) c);
+                            }
+                        }
                     }
-                } finally {
-                    is.close();
                 }
                 final JSON json = JSON.parse(b.toString());
                 b.setLength(0);
-                b.append((char)2).append("git pull req").append((char)2).append((char)15).append(' ');
+                b.append((char) 2).append("git pull req").append((char)2).append((char)15).append(' ');
                 b.append('[').append((char)3).append("12").append(repos).append((char)15).append("] ");
                 b.append('(').append((char)3).append("7").append(json.get("state").asString()).append((char)15).append(") ");
                 b.append((char)3).append('6').append(json.get("user").get("login").asString()).append((char) 15).append(' ');
                 String title = json.get("title").asString();
                 b.append(title);
                 b.append((char)3).append("11").append(' ').append(json.get("html_url").asString());
-                event.respond(b.toString());
+                event.sendMessageResponse(b.toString());
             } finally {
 //                        conn.disconnect();
             }
@@ -217,32 +252,15 @@ public final class GitHubMessageHandler extends EventHandler {
         return;
     }
 
-    public void handleEvent(final EventHandlerContext context, final AbstractMessageEvent<?, ?> event) throws Exception {
-        doHandle(event);
-        super.handleEvent(context, event);
-    }
-
     private static final class RecursionState {
-        int level;
-        Set<String> keys;
+        Set<Key> keys;
 
         private RecursionState() {
-            level = 0;
-            keys = new HashSet<String>();
+            keys = new HashSet<Key>();
         }
 
-        void enter() {
-            level ++;
-        }
-
-        boolean add(String key) {
+        boolean add(Key key) {
             return keys.add(key);
-        }
-
-        void exit() {
-            if (--level == 0) {
-                keys.clear();
-            }
         }
     }
 }

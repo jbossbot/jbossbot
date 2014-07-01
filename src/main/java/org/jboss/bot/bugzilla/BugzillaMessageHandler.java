@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -25,25 +25,39 @@ package org.jboss.bot.bugzilla;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URISyntaxException;
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.flurg.thimbot.event.AbstractMessageEvent;
-import com.flurg.thimbot.event.ActionEvent;
+import com.flurg.thimbot.Priority;
+import com.flurg.thimbot.event.ChannelActionEvent;
+import com.flurg.thimbot.event.ChannelEvent;
+import com.flurg.thimbot.event.ChannelMessageEvent;
+import com.flurg.thimbot.event.Event;
 import com.flurg.thimbot.event.EventHandler;
 import com.flurg.thimbot.event.EventHandlerContext;
-import com.flurg.thimbot.event.MessageEvent;
-import org.jboss.bot.IrcStringBuilder;
+import com.flurg.thimbot.event.FromUserEvent;
+import com.flurg.thimbot.event.HandlerKey;
+import com.flurg.thimbot.event.MultiTargetEvent;
+import com.flurg.thimbot.event.OutboundActionEvent;
+import com.flurg.thimbot.event.OutboundMessageEvent;
+import com.flurg.thimbot.event.PrivateActionEvent;
+import com.flurg.thimbot.event.PrivateMessageEvent;
+import com.flurg.thimbot.event.TextEvent;
+import com.flurg.thimbot.util.IRCStringBuilder;
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotUtils;
+import org.jboss.bot.url.AbstractURLEvent;
 import org.jboss.logging.Logger;
 
 import javax.xml.namespace.QName;
@@ -57,130 +71,206 @@ public final class BugzillaMessageHandler extends EventHandler {
     private static final Logger log = Logger.getLogger("org.jboss.bot.bugzilla");
 
     private final long dupeTime;
-    private final long expireTime;
-    private final ThreadLocal<RecursionState> recursionState = new ThreadLocal<RecursionState>() {
-        protected RecursionState initialValue() {
-            return new RecursionState();
-        }
-    };
+
+    private final ConcurrentMap<String, Map<Key, Event>> events = new ConcurrentHashMap<String, Map<Key, Event>>();
+    private final HandlerKey<RecursionState> handlerKey = new HandlerKey<RecursionState>();
 
     public BugzillaMessageHandler(JBossBot bot) {
         dupeTime = bot.getPrefNode().getLong("bugzilla.cache.duplicate.ms", 10000);
-        expireTime = bot.getPrefNode().getLong("bugzilla.cache.expire.ms", 45000);
     }
 
-    private static final class CacheEntry {
-        private final long timestamp;
-        private final String key;
-        private final String id;
-        private final String product;
-        private final String summary;
-        private final String status;
-        private final String priority;
-        private final String assignee;
-        private final String link;
-        private final String redirect;
+    static final class Key {
+        private final String server;
+        private final long id;
 
-        private CacheEntry(final long timestamp, final String key, final String id, final String product, final String summary, final String status, final String priority, final String assignee, final String link, final String redirect) {
-            this.timestamp = timestamp;
-            this.key = key;
+        Key(final String server, final long id) {
+            this.server = server;
             this.id = id;
-            this.product = product;
-            this.summary = summary;
-            this.status = status;
-            this.priority = priority;
-            this.assignee = assignee;
-            this.link = link;
-            this.redirect = redirect;
+        }
+
+        public String getServer() {
+            return server;
+        }
+
+        public long getId() {
+            return id;
+        }
+
+        public boolean equals(final Object obj) {
+            return obj instanceof Key && id == ((Key) obj).id && server.equals(((Key) obj).server);
+        }
+
+        public int hashCode() {
+            return (int) (id * 31 + server.hashCode());
         }
     }
 
-    private final Map<String, CacheEntry> cache = Collections.synchronizedMap(new LinkedHashMap<String, CacheEntry>() {
-        protected boolean removeEldestEntry(final Map.Entry<String, CacheEntry> eldest) {
-            return System.currentTimeMillis() > eldest.getValue().timestamp + expireTime;
+    private static final Pattern BZ_PATTERN = Pattern.compile("(?:[Bb][Zz]\\s*#)(\\d+)");
+
+    public void handleEvent(final EventHandlerContext context, final ChannelMessageEvent event) throws Exception {
+        doHandle(context, (TextEvent) event);
+        super.handleEvent(context, event);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final ChannelActionEvent event) throws Exception {
+        doHandle(context, (TextEvent) event);
+        super.handleEvent(context, event);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final PrivateMessageEvent event) throws Exception {
+        doHandle(context, (TextEvent) event);
+        super.handleEvent(context, event);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final PrivateActionEvent event) throws Exception {
+        doHandle(context, (TextEvent) event);
+        super.handleEvent(context, event);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final OutboundMessageEvent event) throws Exception {
+        doHandle(context, (TextEvent) event);
+        super.handleEvent(context, event);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final OutboundActionEvent event) throws Exception {
+        doHandle(context, (TextEvent) event);
+        super.handleEvent(context, event);
+    }
+
+    private boolean doHandle(final EventHandlerContext context, final TextEvent event) throws IOException {
+        Matcher matcher = BZ_PATTERN.matcher(event.getText());
+        while (matcher.find()) {
+            String baseUrl = "https://bugzilla.redhat.com";
+            String bugId = matcher.group(1);
+            try {
+                processEvent(context, (Event) event, new Key(baseUrl, Long.parseLong(bugId)));
+            } catch (NumberFormatException ignored) {}
         }
-    });
-
-    private static final Pattern BZ_URL = Pattern.compile("(?:(?:(https?://[.a-zA-Z_-]+(?::\\d+)?)/(?:[^?/]*/)*show_bug\\.cgi\\?id=)|(?:[Bb][Zz]\\s*#))(\\d+)");
-
-    public void handleEvent(final EventHandlerContext context, final MessageEvent event) throws Exception {
-        doHandle(event);
-        super.handleEvent(context, event);
+        return true;
     }
 
-    public void handleEvent(final EventHandlerContext context, final ActionEvent event) throws Exception {
-        doHandle(event);
-        super.handleEvent(context, event);
-    }
-
-    public boolean doHandle(final AbstractMessageEvent<?, ?> event) throws IOException {
-        final RecursionState state = recursionState.get();
-        state.enter();
-        try {
-            int i = 5;
-            final long now = System.currentTimeMillis();
-            final IrcStringBuilder builder = new IrcStringBuilder();
-            Matcher matcher = BZ_URL.matcher(event.getMessage());
-            while (matcher.find() && i-- > 0) {
-                String baseUrl = matcher.group(1);
-                if (baseUrl == null) baseUrl = "https://bugzilla.redhat.com";
-                String bugId = matcher.group(2);
-                final String key = baseUrl + "/show_bug.cgi?id=" + bugId;
-                if (! state.add(key)) {
-                    // we already reported on this issue
-                    continue;
-                }
-                CacheEntry cacheEntry = cache.get(key);
-                if (cacheEntry != null) {
-                    final long timestamp = cacheEntry.timestamp;
-                    if (timestamp + dupeTime > now) {
-                        // we just reported this issue very recently
-                        continue;
-                    }
-                    if (timestamp + expireTime < now) {
-                        // expired...
-                        cache.remove(key);
-                    }
-                    // report the cache entry.
+    public void handleEvent(final EventHandlerContext context, final Event event) throws Exception {
+        if (event instanceof AbstractURLEvent) {
+            URI uri = ((AbstractURLEvent<?>) event).getUri();
+            final String path = uri.getPath();
+            if (path != null && (path.equals("show_bug.cgi") || path.endsWith("/show_bug.cgi"))) {
+                final String baseUrl;
+                if (path.indexOf("/show_bug.cgi") > 0) {
+                    baseUrl = uri.getScheme() + "://" + uri.getAuthority() + '/' + path.substring(0, path.length() - 13);
                 } else {
-                    // create a new cache entry.
-                    cacheEntry = lookup(key, bugId, now);
-                    if (cacheEntry == null) continue;
-                    cache.put(key, cacheEntry);
+                    baseUrl = uri.getScheme() + "://" + uri.getAuthority();
                 }
-                if (cacheEntry.redirect != null) {
-                    builder.b().append("bugzilla").b().nc().append(' ');
-                    builder.append('[').fc(3).append(cacheEntry.product).append(' ').b().append('#').append(bugId).b().nc().append("] ");
-                    builder.fc(7).append("Redirected to: ").fc(10).append(cacheEntry.redirect).nc();
-                } else {
-                    builder.b().append("bugzilla").b().nc().append(' ');
-                    builder.append('[').fc(3).append(cacheEntry.product).append(' ').b().append('#').append(bugId).b().nc().append("] ");
-                    builder.append(cacheEntry.summary);
-                    builder.append(" [").fc(10).append(cacheEntry.status).nc().append(',');
-                    builder.fc(7).append(' ').append(cacheEntry.priority).nc().append(',');
-                    builder.fc(6).append(' ').append(cacheEntry.assignee).nc().append("] ");
-                    builder.append(key);
+                final String id = JBossBotUtils.getURIParameterValue(uri, "id", null);
+                if (id != null) {
+                    final Key key = new Key(baseUrl, Long.parseLong(id));
+                    processEvent(context, event, key);
                 }
-                event.respond(builder.toString());
-                builder.clear();
+            } else {
+                super.handleEvent(context, event);
             }
-            return false;
-        } finally {
-            state.exit();
+        } else {
+            super.handleEvent(context, event);
         }
+    }
+
+    private void processEvent(final EventHandlerContext context, final Event event, final Key key) throws IOException {
+        RecursionState state = context.getContextValue(handlerKey);
+        if (state == null) context.putContextValue(handlerKey, state = new RecursionState());
+        final ArrayList<String> writeTargets = new ArrayList<>();
+        if (state.add(key)) {
+            // new item
+            final ConcurrentMap<String, Map<Key, Event>> events = this.events;
+            if (event instanceof MultiTargetEvent) {
+                for (String target : ((MultiTargetEvent) event).getTargets()) {
+                    if (checkApply(event, key, events, target)) writeTargets.add(target);
+                }
+            } else if (event instanceof ChannelEvent) {
+                String target = ((ChannelEvent) event).getChannel();
+                if (checkApply(event, key, events, target)) writeTargets.add(target);
+            } else if (event instanceof FromUserEvent) {
+                String target = ((FromUserEvent) event).getFromNick();
+                if (checkApply(event, key, events, target)) writeTargets.add(target);
+            }
+        }
+        if (! writeTargets.isEmpty()) {
+            String message = getMessage(key);
+            if (message != null) {
+                event.getBot().sendMessage(Priority.NORMAL, writeTargets, message);
+            }
+        }
+    }
+
+    private boolean checkApply(final Event event, final Key key, final ConcurrentMap<String, Map<Key, Event>> events, final String target) {
+        Map<Key, Event> subMap = events.get(target);
+        if (subMap == null) {
+            Map<Key, Event> appearing = events.putIfAbsent(target, subMap = new LinkedHashMap<Key, Event>() {
+                protected boolean removeEldestEntry(final Map.Entry<Key, Event> eldest) {
+                    return eldest.getValue().getClockTime() < System.currentTimeMillis() - dupeTime;
+                }
+            });
+            if (appearing != null) subMap = appearing;
+        }
+        synchronized (subMap) {
+            Event test = subMap.get(key);
+            if (test != null) {
+                if (test.getClockTime() < System.currentTimeMillis() - dupeTime) {
+                    subMap.put(key, event);
+                    return true;
+                }
+            } else {
+                subMap.put(key, event);
+                return true;
+            }
+        }
+        return false;
     }
 
     private static final byte[] junk = new byte[8192];
 
-    private CacheEntry lookup(final String key, final String id, final long timestamp) {
+    private String getMessage(final Key key) {
+        BzEntry entry = lookup(key);
+        if (entry == null) return null;
+
+        IRCStringBuilder builder = new IRCStringBuilder();
+        builder.b().append("bugzilla").b().nc().append(' ');
+        builder.append('[').fc(3).append(entry.product).append(' ').b().append('#').append(key.getId()).b().nc().append("] ");
+        builder.append(entry.summary);
+        builder.append(" [").fc(10).append(entry.status).nc().append(',');
+        builder.fc(7).append(' ').append(entry.priority).nc().append(',');
+        builder.fc(6).append(' ').append(entry.assignee).nc().append("] ");
+        builder.append(entry.url);
+        return builder.toString();
+    }
+
+    static class BzEntry {
+
+        BzEntry(final String url, final String summary, final String assignee, final String priority, final String status, final String product) {
+            this.url = url;
+            this.summary = summary;
+            this.assignee = assignee;
+            this.priority = priority;
+            this.status = status;
+            this.product = product;
+        }
+
+        String product;
+        String status;
+        String priority;
+        String assignee;
+        String summary;
+        String url;
+    }
+
+    private BzEntry lookup(final Key key) {
         try {
-            final URL url = new URL(key + "&ctype=xml");
+            final String urlString = key.getServer() + "/show_bug.cgi?id=" + key.getId();
+            final URL url = new URL(urlString + "&ctype=xml");
             final HttpURLConnection conn = (HttpURLConnection) JBossBotUtils.connectTo(url);
             try {
                 final int code = conn.getResponseCode();
                 if (code != 200) {
                     if (code == 301 || code == 302 || code == 303) {
-                        return new CacheEntry(timestamp, key, id, null, null, null, null, null, null, conn.getHeaderField("Location"));
+                        return null;
                     }
 
                     log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
@@ -190,7 +280,7 @@ public final class BugzillaMessageHandler extends EventHandler {
                 try {
                     XMLStreamReader reader = XMLInputFactory.newInstance().createXMLStreamReader(is);
                     try {
-                        return parseDocument(key, reader, timestamp, url.toURI().toString());
+                        return parseDocument(reader, urlString);
                     } finally {
                         reader.close();
                     }
@@ -203,7 +293,7 @@ public final class BugzillaMessageHandler extends EventHandler {
             } finally {
 //                conn.disconnect();
             }
-        } catch (URISyntaxException e) {
+        } catch (MalformedURLException e) {
             e.printStackTrace();
             return null;
         } catch (XMLStreamException e) {
@@ -251,17 +341,17 @@ public final class BugzillaMessageHandler extends EventHandler {
 
     }
 
-    private static CacheEntry parseDocument(final String key, XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
+    private static BzEntry parseDocument(XMLStreamReader reader, String link) throws XMLStreamException {
         while (reader.hasNext()) {
             switch (reader.next()) {
                 case XMLStreamConstants.START_DOCUMENT: {
-                    return parseRootElement(key, reader, timestamp, link);
+                    return parseRootElement(reader, link);
                 }
                 case XMLStreamConstants.START_ELEMENT: {
                     if (Element.of(reader.getName()) != Element.BUGZILLA) {
                         return null;
                     }
-                    return parseBugzillaContents(key, reader, timestamp, link);
+                    return parseBugzillaContents(reader, link);
                 }
                 default: {
                     // ignore
@@ -272,14 +362,14 @@ public final class BugzillaMessageHandler extends EventHandler {
         return null;
     }
 
-    private static CacheEntry parseRootElement(final String key, final XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
+    private static BzEntry parseRootElement(final XMLStreamReader reader, String link) throws XMLStreamException {
         while (reader.hasNext()) {
             switch (reader.nextTag()) {
                 case XMLStreamConstants.START_ELEMENT: {
                     if (Element.of(reader.getName()) != Element.BUGZILLA) {
                         return null;
                     }
-                    return parseBugzillaContents(key, reader, timestamp, link);
+                    return parseBugzillaContents(reader, link);
                 }
                 default: {
                     // ignore
@@ -290,7 +380,7 @@ public final class BugzillaMessageHandler extends EventHandler {
         return null;
     }
 
-    private static CacheEntry parseBugzillaContents(final String key, final XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
+    private static BzEntry parseBugzillaContents(final XMLStreamReader reader, String link) throws XMLStreamException {
         while (reader.hasNext()) {
             switch (reader.nextTag()) {
                 case XMLStreamConstants.START_ELEMENT: {
@@ -302,7 +392,7 @@ public final class BugzillaMessageHandler extends EventHandler {
                             return null;
                         }
                     }
-                    return parseBugContents(key, reader, timestamp, link);
+                    return parseBugContents(reader, link);
                 }
                 default: {
                     // ignore
@@ -313,7 +403,7 @@ public final class BugzillaMessageHandler extends EventHandler {
         return null;
     }
 
-    private static CacheEntry parseBugContents(final String key, final XMLStreamReader reader, long timestamp, String link) throws XMLStreamException {
+    private static BzEntry parseBugContents(final XMLStreamReader reader, String link) throws XMLStreamException {
         String summary = null;
         String status = "(?)";
         String priority = "(?)";
@@ -348,7 +438,7 @@ public final class BugzillaMessageHandler extends EventHandler {
                     break;
                 }
                 case XMLStreamConstants.END_ELEMENT: {
-                    return new CacheEntry(timestamp, key, id, product, summary, status + " " + kind, priority, assignee, link, null);
+                    return new BzEntry(link, summary, assignee, priority, status + " " + kind, product);
                 }
                 default: {
                     // ignore
@@ -378,26 +468,14 @@ public final class BugzillaMessageHandler extends EventHandler {
     }
 
     private static final class RecursionState {
-        int level;
-        Set<String> keys;
+        Set<Key> keys;
 
         private RecursionState() {
-            level = 0;
-            keys = new HashSet<String>();
+            keys = new HashSet<Key>();
         }
 
-        void enter() {
-            level ++;
-        }
-
-        boolean add(String key) {
+        boolean add(Key key) {
             return keys.add(key);
-        }
-
-        void exit() {
-            if (--level == 0) {
-                keys.clear();
-            }
         }
     }
 }

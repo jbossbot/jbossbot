@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -20,20 +20,33 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 
-package org.jboss.bot.youtrack;
+package org.jboss.bot.url;
 
-import org.jboss.bot.JBossBot;
-import org.jboss.bot.JBossBotServiceProvider;
-import org.jboss.bot.JBossBotServlet;
-import org.mangosdk.spi.ProviderFor;
+import java.net.URI;
+import java.util.Set;
+
+import com.flurg.thimbot.ThimBot;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
+import com.flurg.thimbot.event.MessageRespondableEvent;
+import com.flurg.thimbot.event.MultiTargetEvent;
+import com.flurg.thimbot.event.OutboundActionEvent;
+import com.flurg.thimbot.event.OutboundEvent;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-@ProviderFor(JBossBotServiceProvider.class)
-public final class YouTrackProvider implements JBossBotServiceProvider {
+public final class OutboundActionURLEvent extends AbstractURLEvent<OutboundActionEvent> implements OutboundEvent, MultiTargetEvent, MessageRespondableEvent {
 
-    public void register(final JBossBot bot, final JBossBotServlet servlet) {
-        bot.getThimBot().addEventHandler(new YouTrackMessageHandler());
+    public OutboundActionURLEvent(final ThimBot bot, final OutboundActionEvent parent, final URI uri) {
+        super(bot, parent, uri);
+    }
+
+    public void dispatch(final EventHandlerContext context, final EventHandler handler) throws Exception {
+        handler.handleEvent(context, this);
+    }
+
+    public Set<String> getTargets() {
+        return getParent().getTargets();
     }
 }

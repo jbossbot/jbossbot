@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -23,7 +23,9 @@
 package org.jboss.bot;
 
 import java.io.IOException;
+import java.util.prefs.Preferences;
 
+import com.flurg.thimbot.handler.AuthenticationHandler;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
@@ -49,6 +51,10 @@ public class JBossBotEJB {
         System.setProperty("java.util.prefs.systemRoot", openshiftDataDir + "/" + "java-system-prefs");
 
         bot = new JBossBot();
+        Preferences nickserv = bot.getPrefNode().node("nickserv");
+        String nick = nickserv.get("nick", "jbossbot");
+        char[] password = nickserv.get("password", "").toCharArray();
+        bot.getThimBot().addEventHandler(new AuthenticationHandler(nick, password));
     }
 
     @PreDestroy

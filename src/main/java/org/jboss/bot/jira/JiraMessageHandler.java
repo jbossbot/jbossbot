@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -25,6 +25,8 @@ package org.jboss.bot.jira;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,25 +34,37 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.flurg.thimbot.event.AbstractMessageEvent;
+import com.flurg.thimbot.event.ChannelActionEvent;
+import com.flurg.thimbot.event.ChannelEvent;
+import com.flurg.thimbot.event.ChannelMessageEvent;
+import com.flurg.thimbot.event.CommonEvent;
+import com.flurg.thimbot.event.Event;
 import com.flurg.thimbot.event.EventHandler;
 import com.flurg.thimbot.event.EventHandlerContext;
-import com.flurg.thimbot.event.MessageEvent;
-import com.flurg.thimbot.source.Channel;
-import com.flurg.thimbot.source.Target;
-import com.flurg.thimbot.source.User;
+import com.flurg.thimbot.event.FromUserEvent;
+import com.flurg.thimbot.event.HandlerKey;
+import com.flurg.thimbot.event.MessageRespondableEvent;
+import com.flurg.thimbot.event.MultiTargetEvent;
+import com.flurg.thimbot.event.OutboundActionEvent;
+import com.flurg.thimbot.event.OutboundMessageEvent;
+import com.flurg.thimbot.event.PrivateActionEvent;
+import com.flurg.thimbot.event.PrivateMessageEvent;
+import com.flurg.thimbot.event.TextEvent;
 import org.jboss.bot.IrcStringBuilder;
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotUtils;
+import org.jboss.bot.url.AbstractURLEvent;
 import org.jboss.logging.Logger;
 
 import javax.xml.namespace.QName;
@@ -65,65 +79,115 @@ public final class JiraMessageHandler extends EventHandler {
 
     private static final Pattern JIRA_KEY = Pattern.compile("\\b([A-Z]{2}[A-Z0-9]*)-\\d+");
 
-    private final Map<Target, Map<String, Long>> cache = Collections.synchronizedMap(new HashMap<Target, Map<String, Long>>());
+    private final ConcurrentMap<String, Map<String, CommonEvent>> events = new ConcurrentHashMap<String, Map<String, CommonEvent>>();
+    private final HandlerKey<RecursionState> handlerKey = new HandlerKey<RecursionState>();
 
-    public void handleEvent(final EventHandlerContext context, final AbstractMessageEvent<?, ?> event) throws Exception {
-        final Target target = event.isToMe() ? ((User) event.getSource()).getNick() : event.getTarget();
-        String message = event.getMessage();
-        List<String> keys;
-        List<String> keepKeys;
-        keys = getIssueKeys(message);
-        if (keys.isEmpty()) return;
-        keepKeys = new ArrayList<String>(keys.size());
-        final long dupTime = event.getBot().getPreferences().node("jira").getLong("duptime", 5L) * 1000000000L;
+    public JiraMessageHandler() {
+    }
 
-        synchronized (cache) {
-            final long now = System.nanoTime();
-            final Map<String, Long> timeMap = getTimeMap(target);
-            for (String key : keys) {
-                final Long time = timeMap.get(key);
-                if (time == null) {
-                    timeMap.put(key, Long.valueOf(now));
-                } else if (now - time.longValue() <= dupTime) {
-                    continue;
-                } else {
-                    // replace old expired key
-                    timeMap.put(key, Long.valueOf(now));
-                }
-                keepKeys.add(key);
-            }
+    static final class Key {
+        private final String server;
+        private final String key;
+
+        Key(final String server, final String key) {
+            this.server = server;
+            this.key = key;
         }
 
-        processKeys(event, keepKeys);
+        public String getServer() {
+            return server;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public boolean equals(final Object obj) {
+            return obj instanceof Key && key.equals(((Key) obj).key) && server.equals(((Key) obj).server);
+        }
+
+        public int hashCode() {
+            return key.hashCode() * 31 + server.hashCode();
+        }
+    }
+
+    public void handleEvent(final EventHandlerContext context, final ChannelMessageEvent event) throws Exception {
+        doHandle(context, event);
         super.handleEvent(context, event);
     }
 
-    private Map<String, Long> getTimeMap(final Target target) {
-        Map<String, Long> timeMap = cache.get(target);
-        if (timeMap == null) {
-            cache.put(target, timeMap = new HashMap<String, Long>());
-        }
-        return timeMap;
+    public void handleEvent(final EventHandlerContext context, final ChannelActionEvent event) throws Exception {
+        doHandle(context, event);
+        super.handleEvent(context, event);
     }
 
-    private static List<String> getIssueKeys(final String message) {
-        Matcher matcher = JIRA_KEY.matcher(message);
-        if (matcher.find()) {
-            final ArrayList<String> keys = new ArrayList<String>();
-            do {
-                keys.add(matcher.group().toUpperCase(Locale.US));
-            } while (matcher.find());
-            return keys;
-        } else {
-            return Collections.emptyList();
+    public void handleEvent(final EventHandlerContext context, final PrivateMessageEvent event) throws Exception {
+        doHandle(context, event);
+        super.handleEvent(context, event);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final PrivateActionEvent event) throws Exception {
+        doHandle(context, event);
+        super.handleEvent(context, event);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final OutboundMessageEvent event) throws Exception {
+        doHandle(context, event);
+        super.handleEvent(context, event);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final OutboundActionEvent event) throws Exception {
+        doHandle(context, event);
+        super.handleEvent(context, event);
+    }
+
+    private <E extends TextEvent & MessageRespondableEvent> void doHandle(final EventHandlerContext context, final E event) throws Exception {
+        Matcher matcher = JIRA_KEY.matcher(event.getText());
+        List<String> keys = new ArrayList<>();
+        while (matcher.find()) {
+            keys.add(matcher.group());
         }
+        if (keys.isEmpty()) return;
+        processKeys(context, event, keys);
+    }
+
+    public void handleEvent(final EventHandlerContext context, final Event event) throws Exception {
+        if (!(event instanceof AbstractURLEvent)) {
+            super.handleEvent(context, event);
+            return;
+        }
+        final AbstractURLEvent urlEvent = (AbstractURLEvent) event;
+        URI uri = urlEvent.getUri();
+        final String path = uri.getPath();
+        final int ls = path.lastIndexOf('/');
+        if (ls == -1) {
+            super.handleEvent(context, event);
+            return;
+        }
+        final int sls = path.lastIndexOf('/', ls - 1);
+        if (sls == -1) {
+            super.handleEvent(context, event);
+            return;
+        }
+        if (! path.substring(sls + 1, ls).equals("browse")) {
+            super.handleEvent(context, event);
+            return;
+        }
+        // check whole region
+        final Matcher matcher = JIRA_KEY.matcher(path.substring(ls + 1));
+        if (! matcher.matches()) {
+            super.handleEvent(context, event);
+            return;
+        }
+        final String key = matcher.group();
+        processKeys(context, urlEvent, Collections.singletonList(key));
     }
 
     private static String projectFor(String key) {
         return key.substring(0, key.indexOf('-'));
     }
 
-    void processKeys(final AbstractMessageEvent<?, ?> event, List<String> keys) throws BackingStoreException, IOException {
+    void processKeys(final EventHandlerContext context, final MessageRespondableEvent event, List<String> keys) throws BackingStoreException, IOException {
         final Preferences jiraNode = event.getBot().getPreferences().node("jira");
         final Set<String> ignored = new HashSet<String>(Arrays.asList(jiraNode.get("ignored", "JSR").split(",\\s*")));
         final Preferences projectsNode = jiraNode.node("projects");
@@ -150,12 +214,58 @@ public final class JiraMessageHandler extends EventHandler {
             if (! url.endsWith("/")) {
                 url += "/";
             }
-            final IssueInfo issueInfo = lookup(url, key);
-            if (issueInfo != null) printIssue("jira", event, issueInfo);
+            RecursionState state = context.getContextValue(handlerKey);
+            if (state == null) context.putContextValue(handlerKey, state = new RecursionState());
+            final ArrayList<String> writeTargets = new ArrayList<>();
+            if (state.add(key)) {
+                // new item
+                final ConcurrentMap<String, Map<String, CommonEvent>> events = this.events;
+                if (event instanceof MultiTargetEvent) {
+                    for (String target : ((MultiTargetEvent) event).getTargets()) {
+                        if (checkApply(event, key, events, target)) writeTargets.add(target);
+                    }
+                } else if (event instanceof ChannelEvent) {
+                    String target = ((ChannelEvent) event).getChannel();
+                    if (checkApply(event, key, events, target)) writeTargets.add(target);
+                } else if (event instanceof FromUserEvent) {
+                    String target = ((FromUserEvent) event).getFromNick();
+                    if (checkApply(event, key, events, target)) writeTargets.add(target);
+                }
+            }
+            if (! writeTargets.isEmpty()) {
+                final IssueInfo issueInfo = lookup(url, key);
+                if (issueInfo != null) printIssue("jira", event, issueInfo);
+            }
+
         }
     }
 
-    void printIssue(final String prefix, final AbstractMessageEvent<?, ?> event, final IssueInfo issueInfo) throws IOException {
+    private boolean checkApply(final CommonEvent event, final String key, final ConcurrentMap<String, Map<String, CommonEvent>> events, final String target) {
+        Map<String, CommonEvent> subMap = events.get(target);
+        if (subMap == null) {
+            Map<String, CommonEvent> appearing = events.putIfAbsent(target, subMap = new LinkedHashMap<String, CommonEvent>() {
+                protected boolean removeEldestEntry(final Map.Entry<String, CommonEvent> eldest) {
+                    return eldest.getValue().getClockTime() < System.currentTimeMillis() - 15000L;
+                }
+            });
+            if (appearing != null) subMap = appearing;
+        }
+        synchronized (subMap) {
+            CommonEvent test = subMap.get(key);
+            if (test != null) {
+                if (test.getClockTime() < System.currentTimeMillis() - 15000L) {
+                    subMap.put(key, event);
+                    return true;
+                }
+            } else {
+                subMap.put(key, event);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void printIssue(final String prefix, final MessageRespondableEvent event, final IssueInfo issueInfo) throws IOException {
         final String key = issueInfo.key;
         final IrcStringBuilder builder = new IrcStringBuilder();
         if (issueInfo.redirect != null) {
@@ -180,7 +290,7 @@ public final class JiraMessageHandler extends EventHandler {
             builder.fc(6).append(' ').append(issueInfo.assignee).nc().append("] ");
             builder.append(issueInfo.link);
         }
-        event.respond(builder.toString());
+        event.sendMessageResponse(builder.toString());
     }
 
     static final class IssueInfo {
@@ -209,7 +319,7 @@ public final class JiraMessageHandler extends EventHandler {
         }
     }
 
-    public void createdNote(final JBossBot bot, final String key) throws BackingStoreException, IOException {
+    public void createdNote(final JBossBot bot, final String key) throws BackingStoreException, IOException, URISyntaxException {
         final Preferences jiraNode = bot.getPrefNode().node("jira");
         final Preferences projectsNode = jiraNode.node("projects");
         String project;
@@ -239,15 +349,8 @@ public final class JiraMessageHandler extends EventHandler {
             url += "/";
         }
         final IssueInfo issueInfo = lookup(url, key);
-        final long now = System.nanoTime();
         if (issueInfo != null) {
-            for (String name : channels) {
-                final Channel channel = new Channel(name);
-                synchronized (cache) {
-                    getTimeMap(channel).put(key, Long.valueOf(now));
-                }
-                printIssue("new jira", new MessageEvent(bot.getThimBot(), bot.getThimBot().getBotUser(), channel, key), issueInfo);
-            }
+            printIssue("new jira", new OutboundMessageEvent(bot.getThimBot(), new HashSet<String>(Arrays.asList(channels)), key), issueInfo);
         }
     }
 
@@ -276,16 +379,13 @@ public final class JiraMessageHandler extends EventHandler {
                     log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
                     return null;
                 }
-                final InputStream is = conn.getInputStream();
-                try {
+                try (InputStream is = conn.getInputStream()) {
                     XMLStreamReader reader = XMLInputFactory.newInstance().createXMLStreamReader(is);
                     try {
                         return parseDocument(reader);
                     } finally {
                         reader.close();
                     }
-                } finally {
-                    is.close();
                 }
             } finally {
 //                conn.disconnect();
@@ -499,6 +599,18 @@ public final class JiraMessageHandler extends EventHandler {
                     return;
                 }
             }
+        }
+    }
+
+    private static final class RecursionState {
+        Set<String> keys;
+
+        private RecursionState() {
+            keys = new HashSet<String>();
+        }
+
+        boolean add(String key) {
+            return keys.add(key);
         }
     }
 }

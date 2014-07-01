@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -34,8 +34,12 @@ import org.mangosdk.spi.ProviderFor;
 public final class GitHubProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
-        final GitHubMessageHandler messageHandler = new GitHubMessageHandler();
+        final GitHubMessageHandler messageHandler = new GitHubMessageHandler(bot);
         bot.getThimBot().addEventHandler(messageHandler);
-        servlet.register(new GitHubHttpHandler(bot, messageHandler));
+        if (servlet != null) servlet.register(new GitHubHttpHandler(bot, messageHandler));
+    }
+
+    public int getPriority() {
+        return 0x200;
     }
 }

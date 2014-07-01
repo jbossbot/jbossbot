@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,12 +22,17 @@
 
 package org.jboss.bot;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.net.URLDecoder;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
@@ -97,12 +102,76 @@ public final class JBossBotUtils {
         return connection;
     }
 
+    public static String getURIParameterValue(URI uri, String name, String defVal) {
+        if (uri == null || name == null) return defVal;
+        final String rawQuery = uri.getRawQuery();
+        if (rawQuery == null) return defVal;
+        String part;
+        int s = 0;
+        int e = rawQuery.indexOf('&');
+        int i;
+        String k, v;
+        while (e != -1) {
+            part = rawQuery.substring(s, e);
+            i = part.indexOf('=');
+            if (i == -1) {
+                s = e + 1;
+                e = rawQuery.indexOf('&', s);
+                continue;
+            }
+            try {
+                k = URLDecoder.decode(rawQuery.substring(s, i), "UTF-8");
+                v = URLDecoder.decode(rawQuery.substring(s + i + 1, e), "UTF-8");
+            } catch (UnsupportedEncodingException e1) {
+                s = e + 1;
+                e = rawQuery.indexOf('&', s);
+                continue;
+            }
+            if (k.equals(name)) {
+                return v;
+            }
+        }
+        part = rawQuery.substring(s);
+        i = part.indexOf('=');
+        if (i == -1) {
+            return defVal;
+        }
+        try {
+            k = URLDecoder.decode(rawQuery.substring(s, i), "UTF-8");
+            v = URLDecoder.decode(rawQuery.substring(s + i + 1), "UTF-8");
+        } catch (UnsupportedEncodingException e1) {
+            return defVal;
+        }
+        if (k.equals(name)) {
+            return v;
+        }
+        return defVal;
+    }
+
     public static SSLSocketFactory getSSLSocketFactory() {
         return SSL_SOCKET_FACTORY;
     }
 
     public static SocketFactory getSocketFactory() {
         return SOCKET_FACTORY;
+    }
+
+    public static void safeClose(Closeable c) {
+        try {
+            c.close();
+        } catch (Throwable ignored) {}
+    }
+
+    public static void safeClose(Socket c) {
+        try {
+            c.close();
+        } catch (Throwable ignored) {}
+    }
+
+    public static void safeClose(ServerSocket c) {
+        try {
+            c.close();
+        } catch (Throwable ignored) {}
     }
 
     static final class OpenShiftSocketFactory extends SocketFactory {

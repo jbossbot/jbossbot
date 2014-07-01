@@ -1,6 +1,6 @@
 /*
  * JBoss, Home of Professional Open Source.
- * Copyright 2013, Red Hat, Inc., and individual contributors
+ * Copyright 2014, Red Hat, Inc., and individual contributors
  * as indicated by the @author tags. See the copyright.txt file in the
  * distribution for a full listing of individual contributors.
  *
@@ -22,12 +22,13 @@
 
 package org.jboss.bot;
 
+import static org.jboss.bot.JBossBotUtils.safeClose;
+
 import com.zwitserloot.json.JSON;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLDecoder;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import org.jboss.logging.Logger;
@@ -37,8 +38,6 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import static org.jboss.bot.JBossBot.safeClose;
-
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
@@ -47,21 +46,6 @@ public abstract class AbstractJSONServlet extends HttpServlet {
     private static final Logger log = Logger.getLogger("org.jboss.bot");
 
     protected void doPost(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
-        final Enumeration<String> requestHeaders = req.getHeaderNames();
-
-        log.infof("Request: %s", req.getRequestURI());
-
-        while (requestHeaders.hasMoreElements()) {
-            String key = requestHeaders.nextElement();
-            final Enumeration<String> list = req.getHeaders(key);
-            if (list != null) {
-                while (list.hasMoreElements()) {
-                    String value = list.nextElement();
-                    log.infof("Header: %s = %s", key, value);
-                }
-            }
-        }
-
         final Map<String, String> queryParams = new HashMap<String, String>();
 
         final String rawQuery = req.getQueryString();
@@ -82,7 +66,8 @@ public abstract class AbstractJSONServlet extends HttpServlet {
             }
         }
 
-        boolean xlate =  "application/x-www-form-urlencoded".equals(req.getHeader("Content-type"));
+        final String contentType = req.getHeader("Content-type");
+        boolean xlate =  "application/x-www-form-urlencoded".equals(contentType) || "application/vnd.github.v3+form".equals(contentType);
         final InputStream requestBody = req.getInputStream();
         try {
             final InputStreamReader rawReader = new InputStreamReader(requestBody, "UTF-8");
@@ -109,6 +94,7 @@ public abstract class AbstractJSONServlet extends HttpServlet {
                 p = eidx == -1 ? s.substring(sidx + 8) : s.substring(sidx + 8, eidx);
                 s = URLDecoder.decode(p, "UTF-8");
             }
+            log.debugf("Payload:%n%s", s);
             JSON json = JSON.parse(s);
             handleRequest(req, resp, queryParams, json);
         } catch (RuntimeException e) {
