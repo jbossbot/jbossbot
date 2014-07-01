@@ -68,7 +68,11 @@ public final class GitHubMessageHandler extends EventHandler {
     private final long dupeTime;
 
     private final ConcurrentMap<String, Map<Key, Event>> events = new ConcurrentHashMap<String, Map<Key, Event>>();
-    private HandlerKey<RecursionState> handlerKey = new HandlerKey<RecursionState>();
+    private HandlerKey<RecursionState> handlerKey = new HandlerKey<RecursionState>() {
+        public RecursionState initialValue() {
+            return new RecursionState();
+        }
+    };
 
     static final class Key {
         private final String org;
@@ -165,6 +169,13 @@ public final class GitHubMessageHandler extends EventHandler {
                         channels = new HashSet<>(0);
                     } else {
                         channels = new HashSet<>(Arrays.asList(chArray));
+                    }
+                }
+                final String wcUnsplitChannels = bot.getPrefNode().node("github/projects").node(owner).node("*").get("channels", "");
+                if (wcUnsplitChannels != null && ! wcUnsplitChannels.isEmpty()) {
+                    final String[] chArray = wcUnsplitChannels.split("\\s*,\\s*");
+                    if (chArray.length > 0) {
+                        channels.addAll(Arrays.asList(chArray));
                     }
                 }
                 if (learn) {

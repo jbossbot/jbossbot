@@ -29,6 +29,7 @@ import java.util.Enumeration;
 import java.util.ServiceLoader;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import javax.servlet.ServletInputStream;
 import org.jboss.logging.Logger;
 
 import javax.ejb.EJB;
@@ -97,6 +98,12 @@ public final class JBossBotServlet extends HttpServlet {
             }
         }
         super.service(req, resp);
+    }
+
+    protected void doGet(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
+        resp.setStatus(HttpServletResponse.SC_OK);
+        resp.setContentLength(0);
+        resp.getOutputStream().close();
     }
 
     public void register(HttpServlet subServlet) {
