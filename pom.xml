@@ -91,13 +91,13 @@
         <dependency>
             <groupId>org.jboss.logging</groupId>
             <artifactId>jboss-logging</artifactId>
-            <version>3.1.2.GA</version>
+            <version>3.1.4.GA</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.jboss.spec.javax.servlet</groupId>
             <artifactId>jboss-servlet-api_3.1_spec</artifactId>
-            <version>1.0.0.Alpha1</version>
+            <version>1.0.0.Final</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -109,8 +109,8 @@
         </dependency>
         <dependency>
             <groupId>org.jboss.spec.javax.ejb</groupId>
-            <artifactId>jboss-ejb-api_3.1_spec</artifactId>
-            <version>1.0.2.Final</version>
+            <artifactId>jboss-ejb-api_3.2_spec</artifactId>
+            <version>1.0.0.Final</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
