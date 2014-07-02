@@ -171,11 +171,13 @@ public final class GitHubMessageHandler extends EventHandler {
                         channels = new HashSet<>(Arrays.asList(chArray));
                     }
                 }
-                final String wcUnsplitChannels = bot.getPrefNode().node("github/projects").node(owner).node("*").get("channels", "");
-                if (wcUnsplitChannels != null && ! wcUnsplitChannels.isEmpty()) {
-                    final String[] chArray = wcUnsplitChannels.split("\\s*,\\s*");
-                    if (chArray.length > 0) {
-                        channels.addAll(Arrays.asList(chArray));
+                if (channels.isEmpty()) {
+                    final String wcUnsplitChannels = bot.getPrefNode().node("github/projects").node(owner).node("*").get("channels", "");
+                    if (wcUnsplitChannels != null && ! wcUnsplitChannels.isEmpty()) {
+                        final String[] chArray = wcUnsplitChannels.split("\\s*,\\s*");
+                        if (chArray.length > 0) {
+                            channels.addAll(Arrays.asList(chArray));
+                        }
                     }
                 }
                 if (learn) {

@@ -23,6 +23,8 @@
 package org.jboss.bot.url;
 
 import java.net.URI;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -34,6 +36,7 @@ import com.flurg.thimbot.event.EventHandlerContext;
 import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
 import org.jsoup.Jsoup;
+import org.jsoup.UnsupportedMimeTypeException;
 import org.jsoup.nodes.Document;
 
 /**
@@ -58,6 +61,16 @@ public final class URLDefaultMessageHandler extends EventHandler {
     public void handleEvent(final EventHandlerContext context, final AbstractURLEvent<?> event) throws Exception {
         final URI uri = event.getUri();
         final String uriString = uri.toString();
+        final Set<String> exclude;
+        final String excludedUnsplit = event.getBot().getPreferences().node("url").get("exclude", "");
+        if (excludedUnsplit == null || excludedUnsplit.isEmpty()) {
+            exclude = Collections.emptySet();
+        } else {
+            exclude = new HashSet<>(Arrays.asList(excludedUnsplit.split("\\s*,\\s*")));
+        }
+        if (exclude.contains(event.getUri().getHost())) {
+            return;
+        }
         final Set<String> set = context.getContextValue(KEY);
         if (! set.add(uriString)) {
             return;
@@ -76,6 +89,8 @@ public final class URLDefaultMessageHandler extends EventHandler {
             s = b.b().append("Title: ").b().nc().fc(3).append(title).nc().toString();
         } catch (HttpStatusException e) {
             s = b.fc(4).append("Status ").append(e.getStatusCode()).nc().toString();
+        } catch (UnsupportedMimeTypeException ignored) {
+            return;
         }
         event.sendMessageResponse(s);
     }
