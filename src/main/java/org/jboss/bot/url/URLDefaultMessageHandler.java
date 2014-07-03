@@ -27,7 +27,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.prefs.Preferences;
 
+import com.flurg.thimbot.event.FromUserEvent;
 import com.flurg.thimbot.event.HandlerKey;
 import com.flurg.thimbot.util.IRCStringBuilder;
 import com.flurg.thimbot.event.Event;
@@ -58,18 +60,29 @@ public final class URLDefaultMessageHandler extends EventHandler {
         super.handleEvent(context, event);
     }
 
+    private static Set<String> getSet(Preferences prefs, String name) {
+        final String unsplit = prefs.get(name, "");
+        if (unsplit == null || unsplit.isEmpty()) {
+            return Collections.emptySet();
+        } else {
+            final HashSet<String> set = new HashSet<>(Arrays.asList(unsplit.trim().split("\\s*,\\s*")));
+            set.remove("");
+            return set;
+        }
+    }
+
     public void handleEvent(final EventHandlerContext context, final AbstractURLEvent<?> event) throws Exception {
         final URI uri = event.getUri();
         final String uriString = uri.toString();
-        final Set<String> exclude;
-        final String excludedUnsplit = event.getBot().getPreferences().node("url").get("exclude", "");
-        if (excludedUnsplit == null || excludedUnsplit.isEmpty()) {
-            exclude = Collections.emptySet();
-        } else {
-            exclude = new HashSet<>(Arrays.asList(excludedUnsplit.split("\\s*,\\s*")));
-        }
+        final Set<String> exclude = getSet(event.getBot().getPreferences().node("url"), "exclude");
         if (exclude.contains(event.getUri().getHost())) {
             return;
+        }
+        if (event instanceof FromUserEvent) {
+            final Set<String> ignore = getSet(event.getBot().getPreferences().node("url"), "ignore-nicks");
+            if (ignore.contains(((FromUserEvent) event).getFromNick())) {
+                return;
+            }
         }
         final Set<String> set = context.getContextValue(KEY);
         if (! set.add(uriString)) {

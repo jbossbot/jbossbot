@@ -278,6 +278,24 @@ public final class GitHubMessageHandler extends EventHandler {
                         }
                         break;
                     }
+                    case "issues": {
+                        final JSON issue = json.get("issue");
+                        owner = json.get("repository").get("owner").get("login").asString();
+                        reposName = json.get("repository").get("name").asString();
+                        final String action = json.get("action").asString();
+                        RecursionState state = context.getContextValue(handlerKey);
+                        state.add(new Key(owner, reposName, issue.get("number").asString(), "issue"));
+                        b.clear();
+                        b.b().append("git issue ").append(action).b().nc().append(' ');
+                        b.append('[').fc(12).append(reposName).nc().append("] ");
+                        b.append('(').fc(7).append(issue.get("state").asString()).nc().append(") ");
+                        b.fc(6).append(issue.get("user").get("login").asString()).nc().append(' ');
+                        String title = issue.get("title").asString();
+                        b.append(title);
+                        b.fc(11).append(' ').append(issue.get("html_url").asString());
+                        bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
+                        break;
+                    }
                     default: {
                         System.out.printf("Unknown git event type %s%n", gitHubEvent);
                         return;
@@ -303,6 +321,8 @@ public final class GitHubMessageHandler extends EventHandler {
                             lookupPullReq(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
                         } else if (obj.equals("commit") || obj.equals("blob")) {
                             lookup(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                        } else if (obj.equals("issues")) {
+                            lookupIssue(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
                         } else {
                             System.out.println("didn't match '" + obj + "'");
                         }
@@ -404,7 +424,53 @@ public final class GitHubMessageHandler extends EventHandler {
                 }
                 final JSON json = JSON.parse(b.toString());
                 b.setLength(0);
-                b.append((char) 2).append("git pull req").append((char)2).append((char)15).append(' ');
+                b.append((char) 2).append("git pull req").append((char) 2).append((char) 15).append(' ');
+                b.append('[').append((char)3).append("12").append(repos).append((char)15).append("] ");
+                b.append('(').append((char)3).append("7").append(json.get("state").asString()).append((char)15).append(") ");
+                b.append((char)3).append('6').append(json.get("user").get("login").asString()).append((char) 15).append(' ');
+                String title = json.get("title").asString();
+                b.append(title);
+                b.append((char) 3).append("11").append(' ').append(json.get("html_url").asString());
+                event.sendMessageResponse(b.toString());
+            } finally {
+//                        conn.disconnect();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return;
+        }
+        return;
+    }
+
+    private static void lookupIssue(final AbstractURLEvent<?> event, final RecursionState state, final String org, final String repos, final String issueId) {
+        final String urlString = String.format("https://api.github.com/repos/%s/%s/issues/%s", org, repos, issueId);
+        if (! state.add(new Key(org, repos, issueId, "issue"))) {
+            // already got it this time round
+            return;
+        }
+        try {
+            final URL url = new URL(urlString);
+            final HttpURLConnection conn = (HttpURLConnection) JBossBotUtils.connectTo(url);
+            try {
+                final int code = conn.getResponseCode();
+                if (code != 200) {
+                    log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
+                    return;
+                }
+                final StringBuilder b = new StringBuilder();
+                try (InputStream is = conn.getInputStream()) {
+                    try (BufferedInputStream bis = new BufferedInputStream(is)) {
+                        try (InputStreamReader reader = new InputStreamReader(bis)) {
+                            int c;
+                            while ((c = reader.read()) != -1) {
+                                b.append((char) c);
+                            }
+                        }
+                    }
+                }
+                final JSON json = JSON.parse(b.toString());
+                b.setLength(0);
+                b.append((char) 2).append("git issue").append((char)2).append((char)15).append(' ');
                 b.append('[').append((char)3).append("12").append(repos).append((char)15).append("] ");
                 b.append('(').append((char)3).append("7").append(json.get("state").asString()).append((char)15).append(") ");
                 b.append((char)3).append('6').append(json.get("user").get("login").asString()).append((char) 15).append(' ');
