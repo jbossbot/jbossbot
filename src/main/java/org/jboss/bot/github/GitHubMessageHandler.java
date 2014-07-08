@@ -258,11 +258,11 @@ public final class GitHubMessageHandler extends EventHandler {
                         owner = pullRequest.get("base").get("repo").get("owner").get("login").asString();
                         reposName = pullRequest.get("base").get("repo").get("name").asString();
                         final String action = json.get("action").asString();
-                        if ("opened".equals(action) || "reopened".equals(action)) {
+                        if ("opened".equals(action) || "reopened".equals(action) || "closed".equals(action)) {
                             RecursionState state = context.getContextValue(handlerKey);
                             state.add(new Key(owner, reposName, json.get("number").asString(), "pull_request"));
                             b.clear();
-                            b.b().append("new git pull req").b().nc().append(' ');
+                            b.b().append("git pull req ").append(action).b().nc().append(' ');
                             b.append('[').fc(12).append(reposName).nc().append("] ");
                             b.append('(').fc(7).append(pullRequest.get("state").asString()).nc().append(") ");
                             b.fc(6).append(pullRequest.get("user").get("login").asString()).nc().append(' ');
@@ -379,7 +379,7 @@ public final class GitHubMessageHandler extends EventHandler {
                 b.fc(6).append(commit.get("author").get("name").asString()).nc().append(' ');
                 String commitMsg = commit.get("message").asString();
                 if (commitMsg.indexOf('\n') != -1) {
-                    b.append(commitMsg.indexOf('\n'));
+                    b.append(commitMsg.substring(commitMsg.indexOf('\n')));
                     b.fc(14).append("...").nc();
                 } else {
                     b.append(commitMsg);
