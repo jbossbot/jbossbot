@@ -379,7 +379,7 @@ public final class GitHubMessageHandler extends EventHandler {
                 b.fc(6).append(commit.get("author").get("name").asString()).nc().append(' ');
                 String commitMsg = commit.get("message").asString();
                 if (commitMsg.indexOf('\n') != -1) {
-                    b.append(commitMsg.substring(commitMsg.indexOf('\n')));
+                    b.append(commitMsg.substring(0, commitMsg.indexOf('\n')));
                     b.fc(14).append("...").nc();
                 } else {
                     b.append(commitMsg);
