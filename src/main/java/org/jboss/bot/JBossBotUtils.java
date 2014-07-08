@@ -222,31 +222,31 @@ public final class JBossBotUtils {
         }
 
         public Socket createSocket(final String host, final int port) throws IOException {
-            return createSocket(SOCKET_FACTORY.createSocket(host, port), host, port, true);
+            return createSocket(SOCKET_FACTORY.createSocket(host, port), null, -1, true);
         }
 
         public Socket createSocket(final String host, final int port, final InetAddress localHost, final int localPort) throws IOException {
             if (localPort == 0) {
-                return createSocket(SOCKET_FACTORY.createSocket(host, port), host, port, true);
+                return createSocket(SOCKET_FACTORY.createSocket(host, port), null, -1, true);
             } else {
-                return createSocket(SOCKET_FACTORY.createSocket(host, port, localHost, localPort), host, port, true);
+                return createSocket(SOCKET_FACTORY.createSocket(host, port, localHost, localPort), null, -1, true);
             }
         }
 
         public Socket createSocket(final InetAddress host, final int port) throws IOException {
-            return createSocket(SOCKET_FACTORY.createSocket(host, port), host.getHostName(), port, true);
+            return createSocket(SOCKET_FACTORY.createSocket(host, port), null, -1, true);
         }
 
         public Socket createSocket(final InetAddress host, final int port, final InetAddress localHost, final int localPort) throws IOException {
             if (localPort == 0) {
-                return createSocket(SOCKET_FACTORY.createSocket(host, port), host.getHostName(), port, true);
+                return createSocket(SOCKET_FACTORY.createSocket(host, port), null, -1, true);
             } else {
-                return createSocket(SOCKET_FACTORY.createSocket(host, port, localHost, localPort), host.getHostName(), port, true);
+                return createSocket(SOCKET_FACTORY.createSocket(host, port, localHost, localPort), null, -1, true);
             }
         }
 
         public Socket createSocket(final Socket s, final String host, final int port, final boolean autoClose) throws IOException {
-            return original.createSocket(s, host, port, autoClose);
+            return original.createSocket(s, null, -1, autoClose);
         }
     }
 }
