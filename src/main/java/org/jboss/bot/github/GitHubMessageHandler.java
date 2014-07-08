@@ -43,8 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 import javax.servlet.http.HttpServletRequest;
@@ -65,9 +63,7 @@ public final class GitHubMessageHandler extends EventHandler {
     private static final Logger log = Logger.getLogger("org.jboss.bot.github");
 
     private final JBossBot bot;
-    private final long dupeTime;
 
-    private final ConcurrentMap<String, Map<Key, Event>> events = new ConcurrentHashMap<String, Map<Key, Event>>();
     private HandlerKey<RecursionState> handlerKey = new HandlerKey<RecursionState>() {
         public RecursionState initialValue() {
             return new RecursionState();
@@ -122,7 +118,6 @@ public final class GitHubMessageHandler extends EventHandler {
 
     public GitHubMessageHandler(JBossBot bot) {
         this.bot = bot;
-        dupeTime = bot.getPrefNode().getLong("github.cache.duplicate.ms", 10000);
     }
 
     private static final Pattern GH_AUTHORITY = Pattern.compile("(?:www\\.)?github\\.com");
@@ -315,16 +310,21 @@ public final class GitHubMessageHandler extends EventHandler {
                     RecursionState state = context.getContextValue(handlerKey);
                     if (state == null) context.putContextValue(handlerKey, state = new RecursionState());
                     final String[] parts = path.split("/+");
-                    if (parts.length >= 4) {
+                    if (parts.length >= 5) {
                         final String obj = parts[3];
-                        if (obj.equals("pull")) {
-                            lookupPullReq(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
-                        } else if (obj.equals("commit") || obj.equals("blob")) {
-                            lookup(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
-                        } else if (obj.equals("issues")) {
-                            lookupIssue(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
-                        } else {
-                            System.out.println("didn't match '" + obj + "'");
+                        switch (obj) {
+                            case "pull":
+                                lookupPullReq(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                                break;
+                            case "commit":
+                                lookup(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                                break;
+                            case "issues":
+                                lookupIssue(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                                break;
+                            default:
+                                System.out.println("didn't match '" + obj + "'");
+                                break;
                         }
                     }
                 }
@@ -342,7 +342,7 @@ public final class GitHubMessageHandler extends EventHandler {
         state.add(new Key(org, repos, prId, "pull_request"));
     }
 
-    private void lookup(final AbstractURLEvent<?> event, final RecursionState state, final String org, final String repos, final String hash) {
+    private static void lookup(final AbstractURLEvent<?> event, final RecursionState state, final String org, final String repos, final String hash) {
         final String urlString = String.format("https://api.github.com/repos/%s/%s/commits/%s", org, repos, hash);
         if (! state.add(new Key(org, repos, hash, "commit"))) {
             // already got it this time round
@@ -470,13 +470,13 @@ public final class GitHubMessageHandler extends EventHandler {
                 }
                 final JSON json = JSON.parse(b.toString());
                 b.setLength(0);
-                b.append((char) 2).append("git issue").append((char)2).append((char)15).append(' ');
+                b.append((char) 2).append("git issue").append((char) 2).append((char) 15).append(' ');
                 b.append('[').append((char)3).append("12").append(repos).append((char)15).append("] ");
                 b.append('(').append((char)3).append("7").append(json.get("state").asString()).append((char)15).append(") ");
                 b.append((char)3).append('6').append(json.get("user").get("login").asString()).append((char) 15).append(' ');
                 String title = json.get("title").asString();
                 b.append(title);
-                b.append((char)3).append("11").append(' ').append(json.get("html_url").asString());
+                b.append((char) 3).append("11").append(' ').append(json.get("html_url").asString());
                 event.sendMessageResponse(b.toString());
             } finally {
 //                        conn.disconnect();
