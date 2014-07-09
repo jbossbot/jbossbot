@@ -23,6 +23,7 @@
 package org.jboss.bot;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -30,6 +31,7 @@ import java.util.ServiceLoader;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.servlet.ServletInputStream;
+import javax.servlet.ServletOutputStream;
 import org.jboss.logging.Logger;
 
 import javax.ejb.EJB;
@@ -100,10 +102,15 @@ public final class JBossBotServlet extends HttpServlet {
         super.service(req, resp);
     }
 
+    private static final String content = "<!doctype html>\n<html><body><div style=\"font-size: 300pt; width: 100%; text-align: center;\">&#128513;</div></body></html>\n";
+    private static final byte[] contentBytes = content.getBytes(StandardCharsets.UTF_8);
+
     protected void doGet(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
         resp.setStatus(HttpServletResponse.SC_OK);
-        resp.setContentLength(0);
-        resp.getOutputStream().close();
+        resp.setContentLength(contentBytes.length);
+        ServletOutputStream os = resp.getOutputStream();
+        os.write(contentBytes);
+        os.close();
     }
 
     public void register(HttpServlet subServlet) {
