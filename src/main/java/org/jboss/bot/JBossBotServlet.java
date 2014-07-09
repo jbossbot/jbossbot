@@ -108,6 +108,7 @@ public final class JBossBotServlet extends HttpServlet {
     protected void doGet(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
         resp.setStatus(HttpServletResponse.SC_OK);
         resp.setContentLength(contentBytes.length);
+        resp.setContentType("text/html");
         ServletOutputStream os = resp.getOutputStream();
         os.write(contentBytes);
         os.close();
