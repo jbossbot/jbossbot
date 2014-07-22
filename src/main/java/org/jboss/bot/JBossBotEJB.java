@@ -25,6 +25,9 @@ package org.jboss.bot;
 import java.io.IOException;
 import java.util.prefs.Preferences;
 
+import com.flurg.thimbot.event.DisconnectEvent;
+import com.flurg.thimbot.event.EventHandler;
+import com.flurg.thimbot.event.EventHandlerContext;
 import com.flurg.thimbot.handler.AuthenticationHandler;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -55,6 +58,11 @@ public class JBossBotEJB {
         String nick = nickserv.get("nick", "jbossbot");
         char[] password = nickserv.get("password", "").toCharArray();
         bot.getThimBot().addEventHandler(new AuthenticationHandler(nick, password));
+        bot.getThimBot().addEventHandler(new EventHandler() {
+            public void handleEvent(final EventHandlerContext context, final DisconnectEvent event) throws Exception {
+                event.getBot().connect();
+            }
+        });
     }
 
     @PreDestroy

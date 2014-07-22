@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -163,14 +164,19 @@ public final class JiraMessageHandler extends EventHandler {
         if (event instanceof HttpRequestEvent) {
             final HttpServletRequest req = ((HttpRequestEvent) event).getRequest();
             final HttpServletResponse resp = ((HttpRequestEvent) event).getResponse();
-            if (! "Atlassian-Webhooks-Plugin".equalsIgnoreCase(req.getHeader("User-agent"))) {
+            final String ua = req.getHeader("User-agent").toLowerCase(Locale.US);
+            if (! (ua.contains("jira") && ua.contains("atlassian"))) {
                 super.handleEvent(context, event);
                 return;
             }
             final JSONServletUtil.JSONRequest jsonRequest = JSONServletUtil.readJSONPost(req, resp);
+            if (jsonRequest == null) {
+                System.out.println("No payload, skipping request");
+                return;
+            }
             final JSON payload = jsonRequest.getBody();
             try {
-                createdNote(bot, payload.get("issue").get("key").asString());
+                createdNote(bot, context, payload.get("issue").get("key").asString());
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -293,9 +299,7 @@ public final class JiraMessageHandler extends EventHandler {
         final String key = issueInfo.key;
         final IrcStringBuilder builder = new IrcStringBuilder();
         if (issueInfo.redirect != null) {
-            builder.b().append(prefix).b().nc().append(' ');
-            builder.append('[').fc(3).append(key).nc().append("] ");
-            builder.fc(7).append("Redirected to: ").fc(10).append(issueInfo.redirect).nc();
+            return;
         } else {
             builder.b().append(prefix).b().nc().append(' ');
             builder.append('[').fc(3).append(key).nc().append("] ");
@@ -343,7 +347,7 @@ public final class JiraMessageHandler extends EventHandler {
         }
     }
 
-    public void createdNote(final JBossBot bot, final String key) throws BackingStoreException, IOException, URISyntaxException {
+    public void createdNote(final JBossBot bot, final EventHandlerContext context, final String key) throws BackingStoreException, IOException, URISyntaxException {
         final Preferences jiraNode = bot.getPrefNode().node("jira");
         final Preferences projectsNode = jiraNode.node("projects");
         String project;
@@ -372,6 +376,9 @@ public final class JiraMessageHandler extends EventHandler {
         if (! url.endsWith("/")) {
             url += "/";
         }
+        RecursionState state = context.getContextValue(handlerKey);
+        if (state == null) context.putContextValue(handlerKey, state = new RecursionState());
+        state.add(key);
         final IssueInfo issueInfo = lookup(url, key);
         if (issueInfo != null) {
             printIssue("new jira", new OutboundMessageEvent(bot.getThimBot(), new HashSet<String>(Arrays.asList(channels)), key), issueInfo);

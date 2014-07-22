@@ -99,7 +99,7 @@ public final class URLDefaultMessageHandler extends EventHandler {
             if (title.isEmpty()) {
                 return;
             }
-            s = b.b().append("Title: ").b().nc().fc(3).append(title).nc().toString();
+            s = b.b().append("Title:").b().nc().fc(3).append(' ').append(title).nc().toString();
         } catch (HttpStatusException e) {
             s = b.fc(4).append("Status ").append(e.getStatusCode()).nc().toString();
         } catch (UnsupportedMimeTypeException ignored) {
