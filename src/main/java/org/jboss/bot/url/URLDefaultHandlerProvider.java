@@ -25,12 +25,12 @@ package org.jboss.bot.url;
 import org.jboss.bot.JBossBot;
 import org.jboss.bot.JBossBotServiceProvider;
 import org.jboss.bot.JBossBotServlet;
-import org.mangosdk.spi.ProviderFor;
+import org.kohsuke.MetaInfServices;
 
 /**
  * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
  */
-@ProviderFor(JBossBotServiceProvider.class)
+@MetaInfServices
 public final class URLDefaultHandlerProvider implements JBossBotServiceProvider {
 
     public void register(final JBossBot bot, final JBossBotServlet servlet) {
