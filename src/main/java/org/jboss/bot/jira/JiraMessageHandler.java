@@ -306,7 +306,7 @@ public final class JiraMessageHandler extends EventHandler {
             builder.append('[').fc(3).append(key).nc().append("] ");
             builder.append(issueInfo.summary);
             String status;
-            if (issueInfo.resolution == null && ! issueInfo.resolution.isEmpty()) {
+            if (issueInfo.resolution == null || issueInfo.resolution.isEmpty()) {
                 status = issueInfo.status;
             } else {
                 status = issueInfo.status + " (" + issueInfo.resolution + ")";
