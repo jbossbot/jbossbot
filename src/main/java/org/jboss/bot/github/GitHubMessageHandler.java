@@ -525,7 +525,7 @@ public final class GitHubMessageHandler extends EventHandler {
                 b.b().append("git pull req").b().nc().append(' ');
                 b.append('[').fc(12).append(repos).nc().append("] ");
                 b.append('(').fc(7).append(json.get("state").asString()).nc().append(") ");
-                b.b().append('6').append(json.get("user").get("login").asString()).nc().append(' ');
+                b.b().fc(6).append(json.get("user").get("login").asString()).nc().append(' ');
                 String title = json.get("title").asString();
                 b.append(title);
                 b.fc(11).append(' ').append(shorten(json.get("html_url").asString()));
