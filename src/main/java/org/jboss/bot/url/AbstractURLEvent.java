@@ -80,7 +80,9 @@ public abstract class AbstractURLEvent<P extends Event & MessageRespondableEvent
         return parent.getResponseTargets();
     }
 
-    public String toString() {
-        return super.toString() + " \"" + uri + "\"";
+    public abstract AbstractURLEvent<P> copyWithNewUri(URI uri);
+
+    protected void toStringAddendum(final StringBuilder b) {
+        b.append(" URL \"").append(uri).append('"');
     }
 }

@@ -41,6 +41,10 @@ public final class PrivateMessageURLEvent extends AbstractURLEvent<PrivateMessag
         super(bot, parent, uri);
     }
 
+    public PrivateMessageURLEvent copyWithNewUri(final URI uri) {
+        return new PrivateMessageURLEvent(getBot(), getParent(), uri);
+    }
+
     public void dispatch(final EventHandlerContext context, final EventHandler handler) throws Exception {
         handler.handleEvent(context, this);
     }

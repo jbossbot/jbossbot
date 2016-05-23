@@ -25,6 +25,7 @@ package org.jboss.bot.url;
 import java.net.URI;
 import java.util.Set;
 
+import com.flurg.thimbot.Priority;
 import com.flurg.thimbot.ThimBot;
 import com.flurg.thimbot.event.EventHandler;
 import com.flurg.thimbot.event.EventHandlerContext;
@@ -38,8 +39,15 @@ import com.flurg.thimbot.event.OutboundMessageEvent;
  */
 public final class OutboundMessageURLEvent extends AbstractURLEvent<OutboundMessageEvent> implements OutboundEvent, MultiTargetEvent, MessageRespondableEvent {
 
-    public OutboundMessageURLEvent(final ThimBot bot, final OutboundMessageEvent parent, final URI uri) {
+    private final Priority priority;
+
+    public OutboundMessageURLEvent(final ThimBot bot, final Priority priority, final OutboundMessageEvent parent, final URI uri) {
         super(bot, parent, uri);
+        this.priority = priority;
+    }
+
+    public OutboundMessageURLEvent copyWithNewUri(final URI uri) {
+        return new OutboundMessageURLEvent(getBot(), priority, getParent(), uri);
     }
 
     public void dispatch(final EventHandlerContext context, final EventHandler handler) throws Exception {
@@ -48,5 +56,9 @@ public final class OutboundMessageURLEvent extends AbstractURLEvent<OutboundMess
 
     public Set<String> getTargets() {
         return getParent().getTargets();
+    }
+
+    public Priority getPriority() {
+        return priority;
     }
 }

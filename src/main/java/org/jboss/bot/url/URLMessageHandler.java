@@ -27,6 +27,7 @@ import java.net.URISyntaxException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.flurg.thimbot.Priority;
 import com.flurg.thimbot.event.ChannelActionEvent;
 import com.flurg.thimbot.event.ChannelMessageEvent;
 import com.flurg.thimbot.event.EventHandler;
@@ -158,11 +159,11 @@ public final class URLMessageHandler extends EventHandler {
                 }
                 cleanString.append(message.substring(last, matcher.start()));
                 cleanString.append("[URL]");
-                context.redispatch(new OutboundMessageURLEvent(event.getBot(), event, uri));
+                context.redispatch(new OutboundMessageURLEvent(event.getBot(), Priority.NORMAL, event, uri));
                 last = matcher.end();
             } while (matcher.find());
             cleanString.append(message.substring(last, message.length()));
-            super.handleEvent(context, new OutboundMessageEvent(event.getBot(), event.getTargets(), cleanString.toString()));
+            super.handleEvent(context, new OutboundMessageEvent(event.getBot(), Priority.NORMAL, event.getTargets(), cleanString.toString()));
         } else {
             super.handleEvent(context, event);
         }
@@ -183,11 +184,11 @@ public final class URLMessageHandler extends EventHandler {
                 }
                 cleanString.append(message.substring(last, matcher.start()));
                 cleanString.append("[URL]");
-                context.redispatch(new OutboundActionURLEvent(event.getBot(), event, uri));
+                context.redispatch(new OutboundActionURLEvent(event.getBot(), Priority.NORMAL, event, uri));
                 last = matcher.end();
             } while (matcher.find());
             cleanString.append(message.substring(last, message.length()));
-            super.handleEvent(context, new OutboundActionEvent(event.getBot(), event.getTargets(), cleanString.toString()));
+            super.handleEvent(context, new OutboundActionEvent(event.getBot(), Priority.NORMAL, event.getTargets(), cleanString.toString()));
         } else {
             super.handleEvent(context, event);
         }

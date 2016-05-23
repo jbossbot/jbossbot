@@ -42,6 +42,10 @@ public final class ChannelMessageURLEvent extends AbstractURLEvent<ChannelMessag
         super(bot, parent, uri);
     }
 
+    public ChannelMessageURLEvent copyWithNewUri(final URI uri) {
+        return new ChannelMessageURLEvent(getBot(), getParent(), uri);
+    }
+
     public void dispatch(final EventHandlerContext context, final EventHandler handler) throws Exception {
         handler.handleEvent(context, this);
     }

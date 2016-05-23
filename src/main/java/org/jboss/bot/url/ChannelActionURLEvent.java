@@ -42,6 +42,10 @@ public final class ChannelActionURLEvent extends AbstractURLEvent<ChannelActionE
         super(bot, parent, uri);
     }
 
+    public ChannelActionURLEvent copyWithNewUri(final URI uri) {
+        return new ChannelActionURLEvent(getBot(), getParent(), uri);
+    }
+
     public void dispatch(final EventHandlerContext context, final EventHandler handler) throws Exception {
         handler.handleEvent(context, this);
     }

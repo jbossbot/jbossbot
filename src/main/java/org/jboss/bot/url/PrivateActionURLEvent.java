@@ -41,6 +41,10 @@ public final class PrivateActionURLEvent extends AbstractURLEvent<PrivateActionE
         super(bot, parent, uri);
     }
 
+    public PrivateActionURLEvent copyWithNewUri(final URI uri) {
+        return new PrivateActionURLEvent(getBot(), getParent(), uri);
+    }
+
     public void dispatch(final EventHandlerContext context, final EventHandler handler) throws Exception {
         handler.handleEvent(context, this);
     }

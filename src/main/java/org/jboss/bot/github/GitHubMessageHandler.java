@@ -27,15 +27,21 @@ import com.flurg.thimbot.event.Event;
 import com.flurg.thimbot.event.EventHandler;
 import com.flurg.thimbot.event.EventHandlerContext;
 import com.flurg.thimbot.event.HandlerKey;
+import com.flurg.thimbot.event.MessageRespondableEvent;
 import com.flurg.thimbot.util.IRCStringBuilder;
 import com.flurg.thimbot.util.IRCStringUtil;
 import com.zwitserloot.json.JSON;
 import java.io.BufferedInputStream;
+import java.io.IOError;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -43,6 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Pattern;
 
 import javax.servlet.http.HttpServletRequest;
@@ -69,6 +77,45 @@ public final class GitHubMessageHandler extends EventHandler {
             return new RecursionState();
         }
     };
+
+    private static final ConcurrentMap<String, String> urlMap = new ConcurrentHashMap<>();
+
+    private static final URL gitIo;
+
+    static {
+        try {
+            gitIo = new URL("http://git.io");
+        } catch (MalformedURLException e) {
+            throw new IOError(e);
+        }
+    }
+
+    private static String shorten(String url) {
+        final String newUrl = urlMap.get(url);
+        if (newUrl != null) {
+            return newUrl;
+        }
+        try {
+            final HttpURLConnection connection = (HttpURLConnection) gitIo.openConnection();
+            byte[] body = ("url=" + url).getBytes(StandardCharsets.UTF_8);
+            connection.setFixedLengthStreamingMode(body.length);
+            connection.setRequestMethod("POST");
+            connection.setDoInput(false);
+            connection.setDoOutput(true);
+            connection.connect();
+            try (OutputStream os = connection.getOutputStream()) { os.write(body); }
+            if (connection.getResponseCode() == 201) {
+                final String location = connection.getHeaderField("Location");
+                if (location != null) {
+                    urlMap.putIfAbsent(url, location);
+                    return location;
+                }
+            }
+            return url;
+        } catch (IOException e) {
+            return url;
+        }
+    }
 
     static final class Key {
         private final String org;
@@ -121,6 +168,7 @@ public final class GitHubMessageHandler extends EventHandler {
     }
 
     private static final Pattern GH_AUTHORITY = Pattern.compile("(?:www\\.)?github\\.com");
+    private static final Pattern GI_AUTHORITY = Pattern.compile("(?:www\\.)?gh\\.io");
 
     public void handleEvent(final EventHandlerContext context, final Event event) throws Exception {
         if (event instanceof HttpRequestEvent) {
@@ -204,6 +252,7 @@ public final class GitHubMessageHandler extends EventHandler {
                         final String branch = refIdx == -1 ? ref : ref.substring(refIdx + 1);
                         final List<JSON> commitsList = json.get("commits").asList();
                         final List<JSON> commits = limit == -1 || limit > commitsList.size() ? commitsList : commitsList.subList(0, limit);
+                        RecursionState state = context.getContextValue(handlerKey);
                         for (JSON commit : commits) {
                             b.clear();
                             b.b().append("git").b().nc().append(' ');
@@ -218,6 +267,10 @@ public final class GitHubMessageHandler extends EventHandler {
                             } else {
                                 b.append(msg);
                             }
+                            b.fc(11).append(' ');
+                            final String hash = commitId.substring(0, 9);
+                            state.add(new Key(owner, reposName, hash, "commit"));
+                            b.append(shorten(String.format("http://github.com/%s/%s/commit/%s", owner, reposName, hash)));
                             bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
                         }
                         if (commitsList.size() > commits.size()) {
@@ -241,14 +294,11 @@ public final class GitHubMessageHandler extends EventHandler {
                         b.append(' ').b().append("push ").b().nc().fc(10).append(branch).nc();
                         b.append(' ').b().append("URL: ").nc();
                         if (commits.size() == 1 && simpleSingle) {
-                            RecursionState state = context.getContextValue(handlerKey);
                             final String hash = after.substring(0, 9);
                             state.add(new Key(owner, reposName, hash, "commit"));
-                            b.append("http://github.com/").append(owner).append('/').append(reposName).append("/commit/");
-                            b.append(hash);
+                            b.append(shorten(String.format("http://github.com/%s/%s/commit/%s", owner, reposName, hash)));
                         } else {
-                            b.append("http://github.com/").append(owner).append('/').append(reposName).append("/compare/");
-                            b.append(before.substring(0, 7)).append("...").append(after.substring(0, 7));
+                            b.append(shorten(String.format("http://github.com/%s/%s/compare/%s...%s", owner, reposName, before.substring(0, 7), after.substring(0, 7))));
                         }
                         bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
                         break;
@@ -258,19 +308,24 @@ public final class GitHubMessageHandler extends EventHandler {
                         owner = pullRequest.get("base").get("repo").get("owner").get("login").asString();
                         reposName = pullRequest.get("base").get("repo").get("name").asString();
                         final String action = json.get("action").asString();
-                        if ("opened".equals(action) || "reopened".equals(action) || "closed".equals(action)) {
-                            RecursionState state = context.getContextValue(handlerKey);
-                            state.add(new Key(owner, reposName, json.get("number").asString(), "pull_request"));
-                            b.clear();
-                            b.b().append("git pull req ").append(action).b().nc().append(' ');
-                            b.append('[').fc(12).append(reposName).nc().append("] ");
-                            b.append('(').fc(7).append(pullRequest.get("state").asString()).nc().append(") ");
-                            b.fc(6).append(pullRequest.get("user").get("login").asString()).nc().append(' ');
-                            String title = pullRequest.get("title").asString();
-                            b.append(title);
-                            b.fc(11).append(' ').append(pullRequest.get("html_url").asString());
-                            bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
+                        RecursionState state = context.getContextValue(handlerKey);
+                        state.add(new Key(owner, reposName, json.get("number").asString(), "pull_request"));
+                        b.clear();
+                        b.b().append("git pull req ").append(action).b().nc().append(' ');
+                        if (action.equals("labeled")) {
+                            final String name = json.get("label").get("name").asString();
+                            b.b().append('+').b().nc().fc(10).append(name).nc().append(' ');
+                        } else if (action.equals("unlabeled")) {
+                            final String name = json.get("label").get("name").asString();
+                            b.b().append('-').b().nc().fc(7).append(name).nc().append(' ');
                         }
+                        b.append('[').fc(12).append(reposName).nc().append("] ");
+                        b.append('(').fc(7).append(pullRequest.get("state").asString()).nc().append(") ");
+                        b.fc(6).append(pullRequest.get("user").get("login").asString()).nc().append(' ');
+                        String title = pullRequest.get("title").asString();
+                        b.append(title);
+                        b.fc(11).append(' ').append(shorten(pullRequest.get("html_url").asString()));
+                        bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
                         break;
                     }
                     case "issues": {
@@ -282,12 +337,19 @@ public final class GitHubMessageHandler extends EventHandler {
                         state.add(new Key(owner, reposName, issue.get("number").asString(), "issue"));
                         b.clear();
                         b.b().append("git issue ").append(action).b().nc().append(' ');
+                        if (action.equals("labeled")) {
+                            final String name = json.get("label").get("name").asString();
+                            b.b().append('+').b().nc().fc(10).append(name).nc().append(' ');
+                        } else if (action.equals("unlabeled")) {
+                            final String name = json.get("label").get("name").asString();
+                            b.b().append('-').b().nc().fc(7).append(name).nc().append(' ');
+                        }
                         b.append('[').fc(12).append(reposName).nc().append("] ");
                         b.append('(').fc(7).append(issue.get("state").asString()).nc().append(") ");
                         b.fc(6).append(issue.get("user").get("login").asString()).nc().append(' ');
                         String title = issue.get("title").asString();
                         b.append(title);
-                        b.fc(11).append(' ').append(issue.get("html_url").asString());
+                        b.fc(11).append(' ').append(shorten(issue.get("html_url").asString()));
                         bot.getThimBot().sendMessage(Priority.NORMAL, channels, b.toString());
                         break;
                     }
@@ -304,31 +366,57 @@ public final class GitHubMessageHandler extends EventHandler {
             final AbstractURLEvent<?> inboundUrlEvent = (AbstractURLEvent<?>) event;
             final URI uri = inboundUrlEvent.getUri();
             final String authority = uri.getAuthority();
-            if (authority != null && GH_AUTHORITY.matcher(authority).matches()) {
-                final String path = uri.getPath();
-                if (path != null) {
-                    RecursionState state = context.getContextValue(handlerKey);
-                    if (state == null) context.putContextValue(handlerKey, state = new RecursionState());
-                    final String[] parts = path.split("/+");
-                    if (parts.length >= 5) {
-                        final String obj = parts[3];
-                        switch (obj) {
-                            case "pull":
-                                lookupPullReq(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
-                                break;
-                            case "commit":
-                                lookup(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
-                                break;
-                            case "issues":
-                                lookupIssue(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
-                                break;
-                            default:
-                                System.out.println("didn't match '" + obj + "'");
-                                break;
+            if (authority != null) {
+                if (GH_AUTHORITY.matcher(authority).matches()) {
+                    final String path = uri.getPath();
+                    if (path != null) {
+                        RecursionState state = context.getContextValue(handlerKey);
+                        if (state == null) context.putContextValue(handlerKey, state = new RecursionState());
+                        final String[] parts = path.split("/+");
+                        if (parts.length >= 5) {
+                            final String obj = parts[3];
+                            switch (obj) {
+                                case "pull":
+                                    lookupPullReq(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                                    break;
+                                case "commit":
+                                    lookup(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                                    break;
+                                case "issues":
+                                    lookupIssue(inboundUrlEvent, state, parts[1], parts[2], parts[4]);
+                                    break;
+                                default:
+                                    System.out.println("didn't match '" + obj + "'");
+                                    break;
+                            }
                         }
                     }
-                }
-                return;
+                    return;
+                } else if (GI_AUTHORITY.matcher(authority).matches()) try {
+                    // shortened URL
+                    String fast = urlMap.get(uri.toString());
+                    URI newUri;
+                    if (fast != null) {
+                        newUri = new URI(fast);
+                    } else {
+                        final HttpURLConnection urlConnection = (HttpURLConnection) uri.toURL().openConnection();
+                        urlConnection.setDoInput(false);
+                        urlConnection.setDoOutput(false);
+                        urlConnection.setInstanceFollowRedirects(false);
+                        final int responseCode = urlConnection.getResponseCode();
+                        if (responseCode == 302) {
+                            newUri = new URI(urlConnection.getHeaderField("Location"));
+                            urlMap.putIfAbsent(uri.toString(), newUri.toString());
+                        } else {
+                            // ignore
+                            super.handleEvent(context, event);
+                            return;
+                        }
+                    }
+                    final AbstractURLEvent<? extends MessageRespondableEvent> newEvent = inboundUrlEvent.copyWithNewUri(newUri);
+                    context.redispatch(newEvent);
+                    return;
+                } catch (IOException ignored) {}
             }
         }
         super.handleEvent(context, event);
@@ -384,7 +472,17 @@ public final class GitHubMessageHandler extends EventHandler {
                 } else {
                     b.append(commitMsg);
                 }
-
+                final JSON ownerNode = json.get("repository").get("owner");
+                String owner = ownerNode.get("name").exists() ? ownerNode.get("name").asString() : ownerNode.get("login").exists() ? ownerNode.get("login").asString() : null;
+                if (owner != null) {
+                    final JSON reposNameNode = json.get("repository").get("name");
+                    if (reposNameNode.exists()) {
+                        String reposName = reposNameNode.asString();
+                        b.fc(11).append(' ');
+                        b.append(shorten(String.format("http://github.com/%s/%s/commit/%s", owner, reposName, hash)));
+                        b.nc();
+                    }
+                }
                 event.sendMessageResponse(b.toString());
             } finally {
 //                        conn.disconnect();
@@ -411,7 +509,7 @@ public final class GitHubMessageHandler extends EventHandler {
                     log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
                     return;
                 }
-                final StringBuilder b = new StringBuilder();
+                final IrcStringBuilder b = new IrcStringBuilder();
                 try (InputStream is = conn.getInputStream()) {
                     try (BufferedInputStream bis = new BufferedInputStream(is)) {
                         try (InputStreamReader reader = new InputStreamReader(bis)) {
@@ -424,13 +522,13 @@ public final class GitHubMessageHandler extends EventHandler {
                 }
                 final JSON json = JSON.parse(b.toString());
                 b.setLength(0);
-                b.append((char) 2).append("git pull req").append((char) 2).append((char) 15).append(' ');
-                b.append('[').append((char)3).append("12").append(repos).append((char)15).append("] ");
-                b.append('(').append((char)3).append("7").append(json.get("state").asString()).append((char)15).append(") ");
-                b.append((char)3).append('6').append(json.get("user").get("login").asString()).append((char) 15).append(' ');
+                b.b().append("git pull req").b().nc().append(' ');
+                b.append('[').fc(12).append(repos).nc().append("] ");
+                b.append('(').fc(7).append(json.get("state").asString()).nc().append(") ");
+                b.b().append('6').append(json.get("user").get("login").asString()).nc().append(' ');
                 String title = json.get("title").asString();
                 b.append(title);
-                b.append((char) 3).append("11").append(' ').append(json.get("html_url").asString());
+                b.fc(11).append(' ').append(shorten(json.get("html_url").asString()));
                 event.sendMessageResponse(b.toString());
             } finally {
 //                        conn.disconnect();
@@ -457,7 +555,7 @@ public final class GitHubMessageHandler extends EventHandler {
                     log.debugf("URL %s returned status %d", url, Integer.valueOf(code));
                     return;
                 }
-                final StringBuilder b = new StringBuilder();
+                final IrcStringBuilder b = new IrcStringBuilder();
                 try (InputStream is = conn.getInputStream()) {
                     try (BufferedInputStream bis = new BufferedInputStream(is)) {
                         try (InputStreamReader reader = new InputStreamReader(bis)) {
@@ -470,13 +568,13 @@ public final class GitHubMessageHandler extends EventHandler {
                 }
                 final JSON json = JSON.parse(b.toString());
                 b.setLength(0);
-                b.append((char) 2).append("git issue").append((char) 2).append((char) 15).append(' ');
-                b.append('[').append((char)3).append("12").append(repos).append((char)15).append("] ");
-                b.append('(').append((char)3).append("7").append(json.get("state").asString()).append((char)15).append(") ");
-                b.append((char)3).append('6').append(json.get("user").get("login").asString()).append((char) 15).append(' ');
+                b.b().append("git issue").b().nc().append(' ');
+                b.append('[').fc(12).append(repos).nc().append("] ");
+                b.append('(').fc(7).append(json.get("state").asString()).nc().append(") ");
+                b.fc(6).append(json.get("user").get("login").asString()).nc().append(' ');
                 String title = json.get("title").asString();
                 b.append(title);
-                b.append((char) 3).append("11").append(' ').append(json.get("html_url").asString());
+                b.fc(11).append(' ').append(shorten(json.get("html_url").asString()));
                 event.sendMessageResponse(b.toString());
             } finally {
 //                        conn.disconnect();

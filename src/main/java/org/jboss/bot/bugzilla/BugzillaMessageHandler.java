@@ -156,7 +156,7 @@ public final class BugzillaMessageHandler extends EventHandler {
             if (path != null && (path.equals("show_bug.cgi") || path.endsWith("/show_bug.cgi"))) {
                 final String baseUrl;
                 if (path.indexOf("/show_bug.cgi") > 0) {
-                    baseUrl = uri.getScheme() + "://" + uri.getAuthority() + '/' + path.substring(0, path.length() - 13);
+                    baseUrl = uri.getScheme() + "://" + uri.getAuthority() + path.substring(0, path.length() - 13);
                 } else {
                     baseUrl = uri.getScheme() + "://" + uri.getAuthority();
                 }

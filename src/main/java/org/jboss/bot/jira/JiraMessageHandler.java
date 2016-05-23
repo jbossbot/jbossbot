@@ -46,6 +46,7 @@ import java.util.prefs.Preferences;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.flurg.thimbot.Priority;
 import com.flurg.thimbot.event.ChannelActionEvent;
 import com.flurg.thimbot.event.ChannelEvent;
 import com.flurg.thimbot.event.ChannelMessageEvent;
@@ -381,7 +382,7 @@ public final class JiraMessageHandler extends EventHandler {
         state.add(key);
         final IssueInfo issueInfo = lookup(url, key);
         if (issueInfo != null) {
-            printIssue("new jira", new OutboundMessageEvent(bot.getThimBot(), new HashSet<String>(Arrays.asList(channels)), key), issueInfo);
+            printIssue("new jira", new OutboundMessageEvent(bot.getThimBot(), Priority.NORMAL, new HashSet<String>(Arrays.asList(channels)), key), issueInfo);
         }
     }
 
@@ -550,14 +551,14 @@ public final class JiraMessageHandler extends EventHandler {
     }
 
     private static IssueInfo parseItemContents(final XMLStreamReader reader) throws XMLStreamException {
-        String summary = null;
+        String summary = "(none)";
         String key = null;
-        String status = null;
-        String priority = null;
-        String assignee = null;
+        String status = "(unknown)";
+        String priority = "(unknown)";
+        String assignee = "(unknown)";
         String link = null;
         String resolution = null;
-        String type = "unknown";
+        String type = "(unknown)";
         List<String> components = new ArrayList<String>();
         while (reader.hasNext()) {
             switch (reader.next()) {

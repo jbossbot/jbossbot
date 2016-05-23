@@ -23,6 +23,7 @@
 package org.jboss.bot.url;
 
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -85,16 +86,15 @@ public final class URLDefaultMessageHandler extends EventHandler {
             }
         }
         final Set<String> set = context.getContextValue(KEY);
-        if (! set.add(uriString)) {
+        if (set.size() >= 8 || ! set.add(uriString)) {
             return;
         }
-        final Connection connection = Jsoup.connect(uriString);
-        connection.followRedirects(true);
-        final Document document;
         String s;
         final IRCStringBuilder b = new IRCStringBuilder();
         try {
-            document = connection.get();
+            final Connection connection = Jsoup.connect(uriString);
+            connection.followRedirects(true);
+            final Document document = connection.get();
             final String title = document.title().trim();
             if (title.isEmpty()) {
                 return;
@@ -102,7 +102,7 @@ public final class URLDefaultMessageHandler extends EventHandler {
             s = b.b().append("Title:").b().nc().fc(3).append(' ').append(title).nc().toString();
         } catch (HttpStatusException e) {
             s = b.fc(4).append("Status ").append(e.getStatusCode()).nc().toString();
-        } catch (UnsupportedMimeTypeException ignored) {
+        } catch (UnknownHostException | UnsupportedMimeTypeException ignored) {
             return;
         }
         event.sendMessageResponse(s);
