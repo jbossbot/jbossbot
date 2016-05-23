@@ -605,11 +605,10 @@ public final class JiraMessageHandler extends EventHandler {
                             break;
                         }
                     }
+                    break;
                 }
                 case XMLStreamConstants.END_ELEMENT: {
-                    if (summary != null && key != null && status != null && priority != null && assignee != null && link != null) {
-                        return new IssueInfo(key, summary, status, priority, assignee, link, null, type, components, resolution);
-                    }
+                    return new IssueInfo(key, summary, status, priority, assignee, link, null, type, components, resolution);
                 }
                 default: {
                     // ignore
