@@ -32,6 +32,7 @@ import com.flurg.thimbot.util.IRCStringBuilder;
 import com.flurg.thimbot.util.IRCStringUtil;
 import com.zwitserloot.json.JSON;
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,10 +42,13 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -321,7 +325,7 @@ public final class GitHubMessageHandler extends EventHandler {
                         }
                         b.append('[').fc(12).append(reposName).nc().append("] ");
                         b.append('(').fc(7).append(pullRequest.get("state").asString()).nc().append(") ");
-                        b.fc(6).append(pullRequest.get("user").get("login").asString()).nc().append(' ');
+                        b.fc(6).append(getNameForUserId(pullRequest.get("user").get("login").asString())).nc().append(' ');
                         String title = pullRequest.get("title").asString();
                         b.append(title);
                         b.fc(11).append(' ').append(shorten(pullRequest.get("html_url").asString()));
@@ -346,7 +350,7 @@ public final class GitHubMessageHandler extends EventHandler {
                         }
                         b.append('[').fc(12).append(reposName).nc().append("] ");
                         b.append('(').fc(7).append(issue.get("state").asString()).nc().append(") ");
-                        b.fc(6).append(issue.get("user").get("login").asString()).nc().append(' ');
+                        b.fc(6).append(getNameForUserId(issue.get("user").get("login").asString())).nc().append(' ');
                         String title = issue.get("title").asString();
                         b.append(title);
                         b.fc(11).append(' ').append(shorten(issue.get("html_url").asString()));
@@ -525,7 +529,7 @@ public final class GitHubMessageHandler extends EventHandler {
                 b.b().append("git pull req").b().nc().append(' ');
                 b.append('[').fc(12).append(repos).nc().append("] ");
                 b.append('(').fc(7).append(json.get("state").asString()).nc().append(") ");
-                b.b().fc(6).append(json.get("user").get("login").asString()).nc().append(' ');
+                b.b().fc(6).append(getNameForUserId(json.get("user").get("login").asString())).nc().append(' ');
                 String title = json.get("title").asString();
                 b.append(title);
                 b.fc(11).append(' ').append(shorten(json.get("html_url").asString()));
@@ -571,7 +575,7 @@ public final class GitHubMessageHandler extends EventHandler {
                 b.b().append("git issue").b().nc().append(' ');
                 b.append('[').fc(12).append(repos).nc().append("] ");
                 b.append('(').fc(7).append(json.get("state").asString()).nc().append(") ");
-                b.fc(6).append(json.get("user").get("login").asString()).nc().append(' ');
+                b.fc(6).append(getNameForUserId(json.get("user").get("login").asString())).nc().append(' ');
                 String title = json.get("title").asString();
                 b.append(title);
                 b.fc(11).append(' ').append(shorten(json.get("html_url").asString()));
@@ -584,6 +588,50 @@ public final class GitHubMessageHandler extends EventHandler {
             return;
         }
         return;
+    }
+
+    private static final Map<String, String> LRU_NAMES = Collections.synchronizedMap(new LinkedHashMap<String, String>(16, 0.5f, true) {
+        protected boolean removeEldestEntry(final Map.Entry<String, String> eldest) {
+            return size() >= 100;
+        }
+    });
+
+    private static String getNameForUserId(String userId) {
+        String name;
+        final Map<String, String> lruNames = LRU_NAMES;
+        synchronized (lruNames) {
+            name = lruNames.get(userId);
+            if (name != null) {
+                return name;
+            }
+            try {
+                final URLConnection connection = JBossBotUtils.connectTo(URI.create("https://api.github.com/users/" + userId).toURL());
+                final StringBuilder b = new StringBuilder();
+                try (InputStream is = connection.getInputStream()) {
+                    try (BufferedInputStream bis = new BufferedInputStream(is)) {
+                        try (InputStreamReader reader = new InputStreamReader(bis)) {
+                            int c;
+                            while ((c = reader.read()) != -1) {
+                                b.append((char) c);
+                            }
+                        }
+                    }
+                }
+                final JSON json = JSON.parse(b.toString());
+                final String realName = json.get("name").asString();
+                if (realName != null && ! realName.isEmpty()) {
+                    lruNames.put(userId, realName);
+                    return realName;
+                } else {
+                    lruNames.put(userId, userId);
+                    return userId;
+                }
+            } catch (IOException e) {
+                lruNames.put(userId, userId);
+                return userId;
+            }
+        }
+
     }
 
     private static final class RecursionState {
