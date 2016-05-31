@@ -88,7 +88,7 @@ public final class GitHubMessageHandler extends EventHandler {
 
     static {
         try {
-            gitIo = new URL("http://git.io");
+            gitIo = new URL("https://git.io");
         } catch (MalformedURLException e) {
             throw new IOError(e);
         }
@@ -476,16 +476,11 @@ public final class GitHubMessageHandler extends EventHandler {
                 } else {
                     b.append(commitMsg);
                 }
-                final JSON ownerNode = json.get("repository").get("owner");
-                String owner = ownerNode.get("name").exists() ? ownerNode.get("name").asString() : ownerNode.get("login").exists() ? ownerNode.get("login").asString() : null;
-                if (owner != null) {
-                    final JSON reposNameNode = json.get("repository").get("name");
-                    if (reposNameNode.exists()) {
-                        String reposName = reposNameNode.asString();
-                        b.fc(11).append(' ');
-                        b.append(shorten(String.format("http://github.com/%s/%s/commit/%s", owner, reposName, hash)));
-                        b.nc();
-                    }
+                final JSON urlNode = json.get("html_url");
+                if (urlNode.exists()) {
+                    b.fc(11).append(' ');
+                    b.append(shorten(urlNode.asString()));
+                    b.nc();
                 }
                 event.sendMessageResponse(b.toString());
             } finally {
