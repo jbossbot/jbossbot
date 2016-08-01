@@ -23,6 +23,10 @@
 package org.jboss.bot;
 
 import java.io.IOException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.prefs.Preferences;
 
 import com.flurg.thimbot.event.DisconnectEvent;
@@ -47,6 +51,16 @@ public class JBossBotEJB {
 
     private volatile JBossBot bot;
 
+    private static final ScheduledExecutorService exec = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
+        public Thread newThread(final Runnable r) {
+            final Thread thread = new Thread(r, "JBossBot Scheduler Thread");
+            thread.setDaemon(true);
+            thread.start();
+            return thread;
+        }
+    });
+
+
     @PostConstruct
     public void startup() {
         final String openshiftDataDir = System.getenv("OPENSHIFT_DATA_DIR");
@@ -60,7 +74,15 @@ public class JBossBotEJB {
         bot.getThimBot().addEventHandler(new AuthenticationHandler(nick, password));
         bot.getThimBot().addEventHandler(new EventHandler() {
             public void handleEvent(final EventHandlerContext context, final DisconnectEvent event) throws Exception {
-                event.getBot().connect();
+                exec.schedule(new Runnable() {
+                    public void run() {
+                        try {
+                            event.getBot().connect();
+                        } catch (IOException e) {
+                            event.getBot().dispatch(event);
+                        }
+                    }
+                }, 10L, TimeUnit.SECONDS);
             }
         });
     }
