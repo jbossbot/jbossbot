@@ -476,12 +476,12 @@ public final class GitHubMessageHandler extends EventHandler {
                 } else {
                     b.append(commitMsg);
                 }
-                final JSON urlNode = json.get("html_url");
-                if (urlNode.exists()) {
-                    b.fc(11).append(' ');
-                    b.append(shorten(urlNode.asString()));
-                    b.nc();
-                }
+//                final JSON urlNode = json.get("html_url");
+//                if (urlNode.exists()) {
+//                    b.fc(11).append(' ');
+//                    b.append(shorten(urlNode.asString()));
+//                    b.nc();
+//                }
                 event.sendMessageResponse(b.toString());
             } finally {
 //                        conn.disconnect();
