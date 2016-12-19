@@ -101,6 +101,9 @@ public final class URLDefaultMessageHandler extends EventHandler {
             }
             s = b.b().append("Title:").b().nc().fc(3).append(' ').append(title).nc().toString();
         } catch (HttpStatusException e) {
+            if (e.getStatusCode() == 404) {
+                return;
+            }
             s = b.fc(4).append("Status ").append(e.getStatusCode()).nc().toString();
         } catch (UnknownHostException | UnsupportedMimeTypeException ignored) {
             return;
